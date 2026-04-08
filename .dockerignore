@@ -1,0 +1,36 @@
+# Dependencies
+node_modules/
+server/node_modules/
+
+# Build outputs
+dist/
+release/
+server/dist/
+
+# Environment files
+.env
+server/.env
+
+# Electron / Desktop app build artifacts
+*.exe
+*.dmg
+*.AppImage
+*.snap
+
+# Local database
+clinic.db
+
+# OS / IDE
+.DS_Store
+*.log
+.vscode/
+.idea/
+Thumbs.db
+
+# Git
+.git/
+.github/
+
+# Temporary files
+tmp/
+temp/
