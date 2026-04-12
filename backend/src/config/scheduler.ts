@@ -1,22 +1,25 @@
 import { backupQueueName, backupQueue } from './queue';
 import logger from './logger';
-import { env } from './env';
+import cron from 'node-cron';
+import { processExpiredSubscriptions } from '../jobs/subscription.job';
 
 export const initScheduler = async () => {
-  // Clear any existing repeatable jobs to avoid duplicates
+  // 1. Subscription Expiration Check (Daily at 00:00)
+  cron.schedule('0 0 * * *', async () => {
+    logger.info('Running daily subscription expiration check...');
+    await processExpiredSubscriptions();
+  });
+
+  // 2. Clear existing repeatable backup jobs
   const repeatableJobs = await backupQueue.getRepeatableJobs();
   for (const job of repeatableJobs) {
     await backupQueue.removeRepeatableByKey(job.key);
   }
 
-  // Schedule Backup for 08:00 and 20:00 every day
-  // Assuming clinicId is passed statically for single-tenant or needs looping for multi-tenant.
-  // For multi-tenant SaaS, you'd typically have a separate chron that queries all active clinics and adds a job for each.
-  // We'll simulate a generic trigger here.
-  
+  // 3. Schedule Backups...
   await backupQueue.add(
     'daily-backup-morning',
-    { clinicId: 'global' }, // In real app, loop all clinics
+    { clinicId: 'global' },
     { repeat: { pattern: '0 8 * * *' } }
   );
 
@@ -26,5 +29,5 @@ export const initScheduler = async () => {
     { repeat: { pattern: '0 20 * * *' } }
   );
 
-  logger.info('Scheduler initialized: Telegram Backups set for 08:00 and 20:00');
+  logger.info('Scheduler initialized: Subscriptions checked daily at 00:00, Backups at 08h/20h');
 };

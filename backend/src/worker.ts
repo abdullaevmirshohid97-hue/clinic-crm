@@ -1,6 +1,5 @@
 import { smsWorker } from './jobs/sms.job';
 import { backupWorker } from './jobs/backup.job';
-import { subscriptionWorker } from './jobs/subscription.job';
 import logger from './config/logger';
 
 logger.info('🚀 BullMQ Workers starting...');
@@ -12,8 +11,7 @@ process.on('SIGTERM', async () => {
   logger.info('SIGTERM received. Closing workers...');
   await Promise.all([
     smsWorker.close(),
-    backupWorker.close(),
-    subscriptionWorker.close()
+    backupWorker.close()
   ]);
   process.exit(0);
 });
