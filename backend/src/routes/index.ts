@@ -8,6 +8,9 @@ import nurseRoutes from '../modules/nurse/nurse.routes';
 import labRoutes from '../modules/lab/lab.routes';
 import marketingRoutes from '../modules/marketing/marketing.routes';
 import pharmacyRoutes from '../modules/pharmacy/pharmacy.routes';
+import adminAnalyticsRoute from './adminAnalytics';
+import clinicAnalyticsRoute from './clinicAnalytics';
+import adminBillingRoute from './adminBilling';
 
 const router = Router();
 
@@ -20,5 +23,8 @@ router.use('/nurse', nurseRoutes);
 router.use('/lab', labRoutes);
 router.use('/marketing', marketingRoutes);
 router.use('/pharmacy', pharmacyRoutes);
+router.use('/admin/analytics', adminAnalyticsRoute);
+router.use('/clinic/analytics', clinicAnalyticsRoute);
+router.use('/admin/billing', adminBillingRoute);
 
 export default router;

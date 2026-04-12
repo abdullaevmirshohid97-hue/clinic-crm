@@ -16,6 +16,21 @@ export class UserService {
   }
 
   static async addStaff(clinicId: string, actorId: string, staffData: { email: string; full_name: string; role: string }) {
+    // 0. Atomic limit check for doctor role via PostgreSQL RPC (race-condition safe)
+    if (staffData.role === 'doctor') {
+      const { error: rpcError } = await supabase.rpc('create_doctor_safe', {
+        p_clinic_id: clinicId,
+        p_name: staffData.full_name,
+      });
+
+      if (rpcError) {
+        if (rpcError.message.includes('limit reached')) throw new Error('Doctor limit reached for your plan');
+        if (rpcError.message.includes('Invalid plan')) throw new Error('Plan configuration error');
+        throw rpcError;
+      }
+      // RPC inserted a profiles row — we'll link it to auth user below
+    }
+
     // 1. Create user in Supabase Auth
     const { data: authUser, error: authError } = await supabase.auth.admin.createUser({
       email: staffData.email,

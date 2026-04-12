@@ -46,17 +46,43 @@ export class PatientService {
   }
 
   static async createPatient(user: UserPayload, patientData: any) {
+    // Step 1: Atomic limit check via PostgreSQL RPC (race-condition safe)
+    const { error: rpcError } = await supabase.rpc('create_patient_safe', {
+      p_clinic_id: user.clinic_id,
+      p_name: patientData.full_name || patientData.name || 'Unknown',
+      p_phone: patientData.phone || null,
+      p_created_by: user.id,
+    });
+
+    if (rpcError) {
+      if (rpcError.message.includes('limit reached')) throw new Error('Patient limit reached for your plan');
+      if (rpcError.message.includes('Invalid plan')) throw new Error('Plan configuration error');
+      throw rpcError;
+    }
+
+    // Step 2: Fetch the just-created patient (RPC already inserted it)
     const { data, error } = await supabase
       .from('patients')
-      .insert({
-        ...patientData,
-        clinic_id: user.clinic_id,
-        doctor_id: user.role === 'doctor' ? user.id : patientData.doctor_id,
-      })
       .select()
+      .eq('clinic_id', user.clinic_id)
+      .order('created_at', { ascending: false })
+      .limit(1)
       .single();
 
     if (error) throw error;
+
+    // Step 3: Update with full patient data if needed (doctor_id, extra fields)
+    const extraFields: any = {};
+    if (user.role === 'doctor') extraFields.doctor_id = user.id;
+    else if (patientData.doctor_id) extraFields.doctor_id = patientData.doctor_id;
+    if (patientData.birth_date) extraFields.birth_date = patientData.birth_date;
+    if (patientData.gender) extraFields.gender = patientData.gender;
+    if (patientData.address) extraFields.address = patientData.address;
+    if (patientData.notes) extraFields.notes = patientData.notes;
+
+    if (Object.keys(extraFields).length > 0) {
+      await supabase.from('patients').update(extraFields).eq('id', data.id);
+    }
 
     await logAudit({
       clinic_id: user.clinic_id,

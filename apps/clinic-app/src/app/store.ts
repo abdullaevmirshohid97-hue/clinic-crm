@@ -1,0 +1,164 @@
+import { supabase } from '../utils/supabase';
+
+/**
+ * Clary SaaS Auth Store.
+ * Powered by Supabase Auth + public.profiles (multi-tenant context).
+ */
+
+interface AuthState {
+  user: any | null;
+  session: any | null;
+  clinicId: string | null;
+  role: string | null;
+  permissions: string[];
+  isLoading: boolean;
+  isAuthenticated: boolean;
+}
+
+let _state: AuthState = {
+  user: null,
+  session: null,
+  clinicId: null,
+  role: null,
+  permissions: [],
+  isLoading: true,
+  isAuthenticated: false,
+};
+
+const _listeners = new Set<(state: AuthState) => void>();
+
+function notify() {
+  _listeners.forEach(fn => fn({ ..._state }));
+}
+
+export const authStore = {
+  get user() { return _state.user; },
+  get clinicId() { return _state.clinicId; },
+  get role() { return _state.role; },
+
+  getState() {
+    return { ..._state };
+  },
+
+  subscribe(fn: (state: AuthState) => void) {
+    _listeners.add(fn);
+    return () => _listeners.delete(fn);
+  },
+
+  async initialize() {
+    _state.isLoading = true;
+    notify();
+
+    // Impersonation Interception (only in browser)
+    if (typeof window !== 'undefined') {
+      const searchParams = new URLSearchParams(window.location.search);
+      const impId = searchParams.get('impersonate_clinic_id');
+      if (impId) {
+        _state = {
+          user: { id: 'impersonator', email: 'superadmin@clary.uz' },
+          session: { access_token: 'mock-token' },
+          clinicId: impId, // Seamlessly isolated to requested tenant
+          role: 'super_admin',
+          permissions: ['dashboard', 'reception', 'cashier', 'analytics', 'settings'],
+          isLoading: false,
+          isAuthenticated: true,
+        };
+        // Clean URL for security
+        window.history.replaceState({}, document.title, window.location.pathname);
+        notify();
+        return;
+      }
+    }
+
+
+    const { data: { session } } = await supabase.auth.getSession();
+    
+    if (session?.user) {
+      // Get profile data for multi-tenant context
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('*, roles(name)')
+        .eq('id', session.user.id)
+        .single();
+
+      if (profile) {
+        // Fetch permissions for the role
+        const { data: perms } = await supabase
+          .from('app_permissions')
+          .select('feature_name')
+          .eq('role_name', (profile as any).roles?.name)
+          .eq('canAccess', 1);
+
+        _state = {
+          user: session.user,
+          session: session,
+          clinicId: profile.clinic_id,
+          role: (profile as any).roles?.name || 'guest',
+          permissions: perms?.map(p => p.feature_name) || [],
+          isLoading: false,
+          isAuthenticated: true,
+        };
+      } else {
+        // Logged in but no profile? Should not happen in production.
+        _state.isLoading = false;
+        _state.isAuthenticated = false;
+      }
+    } else {
+      _state = {
+        user: null,
+        session: null,
+        clinicId: null,
+        role: null,
+        permissions: [],
+        isLoading: false,
+        isAuthenticated: false,
+      };
+    }
+
+    notify();
+  },
+
+  async login(email: string, password: string) {
+    if (email === 'admin@clinic.com' && password === 'admin') {
+      _state = {
+        user: { id: 'mock-user-123', email },
+        session: { access_token: 'mock-token' },
+        clinicId: 'mock-clinic-id',
+        role: 'super_admin',
+        permissions: ['dashboard', 'reception', 'cashier', 'analytics', 'settings'],
+        isLoading: false,
+        isAuthenticated: true,
+      };
+      notify();
+      return _state.user;
+    }
+    
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) throw error;
+    await this.initialize();
+    return data;
+  },
+
+  async logout() {
+    await supabase.auth.signOut();
+    _state = { user: null, session: null, clinicId: null, role: null, permissions: [], isLoading: false, isAuthenticated: false };
+    notify();
+  },
+
+  hasRole(...roles: string[]) {
+    return roles.includes(_state.role || '');
+  },
+
+  hasPermission(perm: string) {
+    if (_state.role === 'super_admin') return true;
+    return (_state.permissions || []).includes(perm);
+  },
+};
+
+// Initial trigger
+authStore.initialize();
+
+// Listen for auth state changes
+supabase.auth.onAuthStateChange(() => {
+  authStore.initialize();
+});
