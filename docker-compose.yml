@@ -59,7 +59,7 @@ services:
       context: .
       dockerfile: docker/Dockerfile
     restart: unless-stopped
-    command: ["node", "dist/worker/index.js"]
+    command: ["node", "dist/worker.js"]
     environment:
       NODE_ENV: ${NODE_ENV:-production}
       LOG_LEVEL: ${LOG_LEVEL:-info}
