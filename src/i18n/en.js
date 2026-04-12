@@ -13,6 +13,12 @@ const en = {
     cashier: 'Cashier',
     settings: 'Settings',
     help: 'Help',
+    laboratory: '🧪 Laboratory',
+    pharmacy: '💊 Pharmacy',
+    inventory: '📦 Inventory',
+    staff: '👥 Staff',
+    marketing: '📣 Marketing',
+    archive: '📂 Archive',
   },
   dashboard: {
     title: 'Dashboard',
@@ -92,6 +98,19 @@ const en = {
     exit: 'Exit',
     statsionarBadge: 'Inpatient',
     prefix: 'Queue prefix',
+    sources: {
+      title: '📣 Marketing Source',
+      none: '— Not Selected —',
+      instagram: '📸 Instagram',
+      telegram: '📱 Telegram',
+      recommendation: '👥 Recommendation (Friends)',
+      banner: '🏢 Street Banner',
+      google: '🔍 Google Search',
+      website: '🌐 Website',
+      tv: '📺 TV',
+      repeat: '🔄 Repeat Visit',
+      other: '📌 Other'
+    }
   },
   queue: {
     title: 'Queue',
@@ -147,6 +166,41 @@ const en = {
     journal: 'Room Journal',
     notFound: 'Rooms not found.',
     noData: 'No data found.',
+    diets: {
+      standard: 'Regular',
+      diet5: 'Diet 5 (Gastric)',
+      diet9: 'Diet 9 (Diabetes)',
+      no_salt: 'Salt-free',
+      liquid: 'Liquid food'
+    },
+    tabs: {
+      map: '🗺️ Map',
+      list: '📋 List',
+      nurse: '👩‍⚕️ Nurse Post',
+      kitchen: '🍲 Kitchen',
+      settings: '⚙️ Settings'
+    },
+    vitals: {
+      title: 'Vital Signs',
+      temperature: 'Temperature (°C)',
+      bp: 'Blood Pressure',
+      pulse: 'Pulse',
+      weight: 'Weight (kg)',
+      history: 'History',
+      save_success: 'Vital signs saved successfully'
+    },
+    discharge: {
+      title: 'Patient Discharge',
+      days: 'Days',
+      room_price: 'Room Price',
+      meal_price: 'Meal Price',
+      additional_debt: 'Additional Debt (Pharmacy/Lab)',
+      grand_total: 'Grand Total',
+      deposit_deduction: 'Deposit Deduction',
+      to_pay: 'Remaining to Pay',
+      confirm: 'Confirm Discharge',
+      success: 'discharged from clinical care!'
+    }
   },
   journal: {
     title: 'Journal',
@@ -187,6 +241,58 @@ const en = {
     add_expense: '💸 + Expense',
     z_report: '🔒 Close Shift (Z-Report)',
     pay_debt: '🔴 Pay Debt',
+    live_balance: '💰 Live Balance',
+    financial_control: 'Cash operations and financial control',
+    filters: '🔍 Filters',
+    refresh: '🔄 Refresh',
+    new_reception: '➕ New Admission',
+    net_revenue: 'Net Revenue',
+    current_debts: 'Current Debts',
+    inkassatsiya: '⚠️ WARNING: Cash Collection Required!',
+    period: 'Period:',
+    search_placeholder: '🔍 Search (Name, doctor, service)...',
+    table: {
+      date: 'Date',
+      time: 'Time',
+      doctor: 'Doctor',
+      category: 'Category',
+      patient: 'Patient Name',
+      service: 'Service Name',
+      commission: 'Share',
+      room: 'Room',
+      amount: 'Amount',
+      payment: 'Payment',
+      discount: 'Discount',
+      status: 'Status',
+      cashier: 'Cashier',
+      actions: 'Actions'
+    },
+    footer: {
+      total: 'TOTAL:',
+      cash: 'CASH:',
+      card: 'CARD:',
+      debt: 'DEBT:',
+      count: 'Operations'
+    },
+    expense_modal: {
+      title: '💸 New Expense / Payout',
+      category: 'Expense Category',
+      amount: 'Amount (UZS)',
+      description: 'Note / Reason',
+      categories: {
+        household: 'Household goods',
+        salary: 'Staff salaries',
+        rent: 'Building rent',
+        medicine: 'Medicines / Reagents',
+        marketing: 'Advertising / Marketing',
+        other: 'Other expenses'
+      }
+    },
+    status: {
+      ok: '🟢 OK',
+      refunded: '🟡 Refunded',
+      debt_pay: '🔴 Debt (Pay)'
+    }
   },
   analytics: {
     title: 'Analytics',
@@ -371,6 +477,60 @@ const en = {
     f11: 'F11 — Fullscreen',
     f12: 'F12 — Save Only',
   },
+  pharmacy: {
+    title: '💊 Pharmacy',
+    searchPlaceholder: 'Search medicines...',
+    newMedicine: '➕ New Medicine',
+    refresh: '🔄 Refresh',
+    totalMedicines: 'Total Medicines',
+    lowStock: 'Low Stock (≤10)',
+    expired: 'Expired',
+    totalValue: 'Total Value',
+    table: {
+      name: 'Name',
+      category: 'Category',
+      qty: 'Qty',
+      unit: 'Unit',
+      price: 'Price',
+      expiry: 'Expiry',
+      actions: 'Actions'
+    },
+    empty: 'Pharmacy is empty',
+    editMedicine: '✏️ Edit Medicine',
+    addMedicine: '➕ Add New Medicine',
+    form: {
+      name: 'Medicine Name *',
+      category: 'Category',
+      categoryPh: 'Tablet, syrup...',
+      unit: 'Unit',
+      qty: 'Quantity *',
+      price: 'Price (sum)',
+      expiry: 'Expiry Date'
+    },
+    units: {
+      dona: 'Pcs',
+      quti: 'Box',
+      blister: 'Blister',
+      ml: 'ml',
+      kg: 'kg'
+    },
+    importExcel: '📥 Import Excel (Purchase)',
+    saleCart: '🛒 To Cart',
+    saleTitle: '🛒 Process Sale',
+    saleTable: {
+      name: 'Name',
+      qty: 'Qty',
+      price: 'Price',
+      action: 'Action'
+    },
+    emptyCart: 'Cart is empty',
+    inpatientSelect: 'Inpatient (Optional)',
+    cashSale: '-- Normal Sale (Cashier) --',
+    paymentMethod: 'Payment Method *',
+    debtOption: 'Debt (Charge to Room)',
+    totalPayment: 'Total Payment:',
+    acceptBtn: '💳 Accept'
+  }
 };
 
 export default en;

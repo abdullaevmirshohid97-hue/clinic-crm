@@ -3,13 +3,14 @@ import { useTranslation } from '../i18n/LanguageContext';
 import { useToast } from '../components/Toast';
 import Modal from '../components/Modal';
 import { db } from '../utils/db';
+import { supabase } from '../utils/supabase';
 
 const DIET_TYPES = {
-  standard: 'Oddiy',
-  diet5: 'Parhez 5 (Oshqozon)',
-  diet9: 'Parhez 9 (Qandli diabet)',
-  no_salt: 'Tuzsiz',
-  liquid: 'Suyuq ovqat'
+  standard: 'inpatient.diets.standard',
+  diet5: 'inpatient.diets.diet5',
+  diet9: 'inpatient.diets.diet9',
+  no_salt: 'inpatient.diets.no_salt',
+  liquid: 'inpatient.diets.liquid'
 };
 
 export default function Inpatient() {
@@ -158,7 +159,7 @@ export default function Inpatient() {
         pulse: Number(vitalsForm.pulse),
         weight: Number(vitalsForm.weight)
       });
-      toast.success("Hayotiy ko'rsatkichlar saqlandi");
+      toast.success(t('inpatient.vitals.save_success'));
       loadVitals(showVitalsModal.id);
       setVitalsForm({ temperature: '', bp: '', pulse: '', weight: '' });
     } catch (e) { toast.error(e.message); }
@@ -187,9 +188,16 @@ export default function Inpatient() {
 
     let additionalDebt = 0;
     try {
-      const tx = await db.query("SELECT debt, amount, type FROM transactions WHERE patientId=?", [rp.patientId]);
-      tx.forEach(t => { if (t.type === 'debt') additionalDebt += Number(t.debt || 0); });
-    } catch (e) {}
+      const { data: tx } = await supabase.from('transactions').select('debt, amount, type, payment_type, description').eq('patient_id', rp.patientId);
+      if (tx) {
+        tx.forEach(t => { 
+          if (t.type === 'debt') additionalDebt += Number(t.debt || t.amount || 0); 
+          if (t.type === 'pharmacy_sale' && t.payment_type === 'debt') additionalDebt += Number(t.amount || 0);
+        });
+      }
+    } catch (e) {
+      console.error(e);
+    }
 
     const deposit = Number(rp.depositBalance || 0);
     const grandTotal = baseTotal + additionalDebt;
@@ -210,18 +218,18 @@ export default function Inpatient() {
         await db.insert('transactions', {
           patientId: rp.patientId, patient_name: rp.patientName, type: 'payment',
           paymentType: 'cash', amount: Math.min(deposit, grandTotal),
-          description: `Depozitdan yechildi: Statsionar ${rp.roomName}`
+          description: `${t('inpatient.discharge.deposit_deduction')}: Statsionar ${rp.roomName}`
         });
       }
       if (toPay > 0) {
         await db.insert('transactions', {
           patientId: rp.patientId, patient_name: rp.patientName, type: 'debt',
           paymentType: 'debt', debt: toPay, amount: toPay,
-          description: `Statsionar chiqish qarzi: ${rp.roomName} (${days} kun)`
+          description: `${t('inpatient.discharge.title')}: ${rp.roomName} (${days} ${t('inpatient.days')})`
         });
       }
       await db.update('rooms', rp.roomId, { cleaningStatus: 'cleaning' });
-      toast.success(`${rp.patientName} ro'yxatdan chiqarildi!`);
+      toast.success(`${rp.patientName} ${t('inpatient.discharge.success')}`);
       setShowDischargeModal(null);
       await loadAll();
     } catch (e) { toast.error(e.message); }
@@ -233,7 +241,7 @@ export default function Inpatient() {
       data.total++;
       const dt = rp.dietType || 'standard';
       data.byDiet[dt] = (data.byDiet[dt] || 0) + 1;
-      data.byRoom.push({ rp, dietLabel: DIET_TYPES[dt] || dt });
+      data.byRoom.push({ rp, dietLabel: t(DIET_TYPES[dt]) || dt });
     });
     return data;
   };
@@ -538,12 +546,14 @@ export default function Inpatient() {
         {dischargeInvoice && <div>
            <div style={{border:'1px dashed var(--border-color)', padding:15, borderRadius:8, marginBottom:20}}>
              <h3 style={{textAlign:'center'}}>{dischargeInvoice.rp.patientName}</h3>
-             <div style={{display:'flex', justifyContent:'space-between'}}><span>Hisob:</span><b>{formatPrice(dischargeInvoice.grandTotal)} so'm</b></div>
-             <div style={{display:'flex', justifyContent:'space-between'}}><span>Depozit:</span><b>-{formatPrice(dischargeInvoice.deposit)} so'm</b></div>
+             <div style={{display:'flex', justifyContent:'space-between'}}><span>Xona va Ovqat puli:</span><b>{formatPrice(dischargeInvoice.roomTotal + dischargeInvoice.mealTotal)} so'm</b></div>
+             <div style={{display:'flex', justifyContent:'space-between'}}><span>Qarz / Dori Xarajatlari:</span><b>{formatPrice(dischargeInvoice.additionalDebt)} so'm</b></div>
+             <div style={{display:'flex', justifyContent:'space-between'}}><span>Jami:</span><b>{formatPrice(dischargeInvoice.grandTotal)} so'm</b></div>
+             <div style={{display:'flex', justifyContent:'space-between', color:'var(--success)'}}><span>Depozit:</span><b>-{formatPrice(dischargeInvoice.deposit)} so'm</b></div>
              <div style={{borderTop:'2px solid var(--text-main)', margin:'10px 0'}}></div>
-             <div style={{display:'flex', justifyContent:'space-between', fontSize:20}}><span>Qoldiq:</span><b>{formatPrice(Math.max(0, dischargeInvoice.toPay))} so'm</b></div>
+             <div style={{display:'flex', justifyContent:'space-between', fontSize:20}}><span>Yakuniy Qoldiq (To'lanadigan summa):</span><b>{formatPrice(Math.max(0, dischargeInvoice.toPay))} so'm</b></div>
            </div>
-           <button className="btn btn-danger w-full" onClick={confirmDischarge}>Tasdiqlash</button>
+           <button className="btn btn-danger w-full" onClick={confirmDischarge}>🚪 {dischargeInvoice.toPay > 0 ? "Qarzdorlik bilan Saqlash (Chiqarish)" : "Tasdiqlash"}</button>
         </div>}
       </Modal>
 

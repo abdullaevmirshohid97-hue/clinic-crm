@@ -13,6 +13,12 @@ const ru = {
     cashier: 'Касса',
     settings: 'Настройки',
     help: 'Помощь',
+    laboratory: '🧪 Лаборатория',
+    pharmacy: '💊 Аптека',
+    inventory: '📦 Склад',
+    staff: '👥 Персонал',
+    marketing: '📣 Маркетинг',
+    archive: '📂 Архив',
   },
   dashboard: {
     title: 'Главная',
@@ -92,6 +98,19 @@ const ru = {
     exit: 'Выход',
     statsionarBadge: 'В стационаре',
     prefix: 'Префикс очереди',
+    sources: {
+      title: '📣 Откуда узнали?',
+      none: '— Не выбрано —',
+      instagram: '📸 Instagram',
+      telegram: '📱 Telegram',
+      recommendation: '👥 Рекомендация (Друзья)',
+      banner: '🏢 Уличный баннер',
+      google: '🔍 Поиск Google',
+      website: '🌐 Веб-сайт',
+      tv: '📺 Телевизор',
+      repeat: '🔄 Повторный визит',
+      other: '📌 Другое'
+    }
   },
   queue: {
     title: 'Очередь',
@@ -147,6 +166,41 @@ const ru = {
     journal: 'Журнал палаты',
     notFound: 'Палаты не найдены.',
     noData: 'Данные не найдены.',
+    diets: {
+      standard: 'Обычная',
+      diet5: 'Диета 5 (Желудочная)',
+      diet9: 'Диета 9 (Сахарный диабет)',
+      no_salt: 'Без соли',
+      liquid: 'Жидкая пища'
+    },
+    tabs: {
+      map: '🗺️ Карта',
+      list: '📋 Список',
+      nurse: '👩‍⚕️ Пост медсестры',
+      kitchen: '🍲 Кухня',
+      settings: '⚙️ Настройки'
+    },
+    vitals: {
+      title: 'Жизненные показатели',
+      temperature: 'Температура (°C)',
+      bp: 'Давление',
+      pulse: 'Пульс',
+      weight: 'Вес (кг)',
+      history: 'История',
+      save_success: 'Жизненные показатели сохранены'
+    },
+    discharge: {
+      title: 'Выписка пациента',
+      days: 'Дни',
+      room_price: 'Цена палаты',
+      meal_price: 'Цена питания',
+      additional_debt: 'Доп. задолженность (Аптека/Лаб)',
+      grand_total: 'Итоговая сумма',
+      deposit_deduction: 'Вычет из депозита',
+      to_pay: 'К оплате',
+      confirm: 'Подтвердить выписку',
+      success: 'выписан из клиники!'
+    }
   },
   journal: {
     title: 'Журнал',
@@ -187,6 +241,58 @@ const ru = {
     add_expense: '💸 + Расход',
     z_report: '🔒 Закрыть смену (Z-Отчет)',
     pay_debt: '🔴 Оплатить долг',
+    live_balance: '💰 Текущий Live Баланс',
+    financial_control: 'Кассовые операции и финансовый контроль',
+    filters: '🔍 Фильтры',
+    refresh: '🔄 Обновить',
+    new_reception: '➕ Новый Прием',
+    net_revenue: 'Чистая выручка (Net)',
+    current_debts: 'Текущие долги (Debts)',
+    inkassatsiya: '⚠️ ВНИМАНИЕ: Сделайте инкассацию!',
+    period: 'Период:',
+    search_placeholder: '🔍 Поиск (Имя, врач, услуга)...',
+    table: {
+      date: 'Дата',
+      time: 'Время',
+      doctor: 'Врач',
+      category: 'Категория',
+      patient: 'Имя Пациента',
+      service: 'Название услуги',
+      commission: 'Доля',
+      room: 'Палата',
+      amount: 'Сумма',
+      payment: 'Оплата',
+      discount: 'Скидка',
+      status: 'Статус',
+      cashier: 'Кассир',
+      actions: 'Действие'
+    },
+    footer: {
+      total: 'ИТОГО:',
+      cash: 'НАЛИЧНЫЕ:',
+      card: 'КАРТА:',
+      debt: 'ДОЛГ:',
+      count: 'Операция'
+    },
+    expense_modal: {
+      title: '💸 Новый Расход / Выплата',
+      category: 'Категория расхода',
+      amount: 'Сумма (UZS)',
+      description: 'Примечание / Причина',
+      categories: {
+        household: 'Хозяйственные товары',
+        salary: 'Зарплата сотрудников',
+        rent: 'Аренда здания',
+        medicine: 'Лекарства / Реактивы',
+        marketing: 'Реклама / Маркетинг',
+        other: 'Прочие расходы'
+      }
+    },
+    status: {
+      ok: '🟢 OK',
+      refunded: '🟡 Возврат',
+      debt_pay: '🔴 Долг (Оплатить)'
+    }
   },
   analytics: {
     title: 'Аналитика',
@@ -371,6 +477,60 @@ const ru = {
     f11: 'F11 — Полный экран',
     f12: 'F12 — Сохранить (без чека)',
   },
+  pharmacy: {
+    title: '💊 Аптека',
+    searchPlaceholder: 'Поиск лекарств...',
+    newMedicine: '➕ Новое лекарство',
+    refresh: '🔄 Обновить',
+    totalMedicines: 'Всего лекарств',
+    lowStock: 'Мало (≤10)',
+    expired: 'Просрочено',
+    totalValue: 'Общая стоимость',
+    table: {
+      name: 'Название',
+      category: 'Категория',
+      qty: 'Кол-во',
+      unit: 'Ед. изм.',
+      price: 'Цена',
+      expiry: 'Срок',
+      actions: 'Действия'
+    },
+    empty: 'Аптека пуста',
+    editMedicine: '✏️ Редактировать лекарство',
+    addMedicine: '➕ Добавить новое лекарство',
+    form: {
+      name: 'Название *',
+      category: 'Категория',
+      categoryPh: 'Таблетки, сироп...',
+      unit: 'Ед. изм.',
+      qty: 'Кол-во *',
+      price: 'Цена (сум)',
+      expiry: 'Срок годности'
+    },
+    units: {
+      dona: 'Шт',
+      quti: 'Кор',
+      blister: 'Блистер',
+      ml: 'мл',
+      kg: 'кг'
+    },
+    importExcel: '📥 Импорт Excel (Приход)',
+    saleCart: '🛒 В корзину',
+    saleTitle: '🛒 Оформление продажи',
+    saleTable: {
+      name: 'Название',
+      qty: 'Кол-во',
+      price: 'Цена',
+      action: 'Действие'
+    },
+    emptyCart: 'Корзина пуста',
+    inpatientSelect: 'Стационарный пациент (Опционально)',
+    cashSale: '-- Обычная продажа (Касса) --',
+    paymentMethod: 'Метод оплаты *',
+    debtOption: 'В долг (Записать на палату)',
+    totalPayment: 'Итого к оплате:',
+    acceptBtn: '💳 Принять'
+  }
 };
 
 export default ru;

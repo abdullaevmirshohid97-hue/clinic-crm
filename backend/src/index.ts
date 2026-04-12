@@ -1,12 +1,12 @@
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
-import rateLimit from 'express-rate-limit';
 import { env } from './config/env';
 import logger from './config/logger';
 import routes from './routes';
 import { errorHandler } from './middleware/error';
 import { initScheduler } from './config/scheduler';
+import { apiRateLimit, authRateLimit } from './middleware/rateLimit.middleware';
 
 const app = express();
 
@@ -15,17 +15,14 @@ app.use(helmet());
 app.use(cors());
 app.use(express.json());
 
-// Main Routes
-app.use('/api/v1', routes);
+// Global API Rate Limit
+app.use(apiRateLimit);
 
-// Rate Limiting
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Limit each IP to 100 requests per windowMs
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-app.use(limiter);
+// Auth Rate Limit (stricter)
+app.use('/api/v1/auth', authRateLimit);
+
+// Main Routes (API v1)
+app.use('/api/v1', routes);
 
 // Health Check
 app.get('/health', (req, res) => {
@@ -35,14 +32,14 @@ app.get('/health', (req, res) => {
 // Global Error Handler
 app.use(errorHandler);
 
-// Start Server
+// Start Server (Don't block on scheduler case Redis is down)
 const port = env.PORT;
-initScheduler().then(() => {
-  app.listen(port, () => {
-    logger.info(`🚀 Server running in ${env.NODE_ENV} mode on port ${port}`);
-  });
-}).catch((err) => {
-  logger.error('Failed to initialize scheduler', err);
+app.listen(port, () => {
+  logger.info(`🚀 Server running in ${env.NODE_ENV} mode on port ${port}`);
+});
+
+initScheduler().catch((err) => {
+  logger.error('Failed to initialize scheduler (Redis might be down)', err);
 });
 
 export default app;

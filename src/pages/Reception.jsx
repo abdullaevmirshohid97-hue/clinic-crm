@@ -8,20 +8,11 @@ import { printReceipt } from '../utils/printer';
 const EMPTY_PATIENT = { fullName: '', phone: '', birthDate: '', gender: 'male', address: '', source: '' };
 
 const PATIENT_SOURCES = [
-  { value: '', label: '— Tanlanmagan —' },
-  { value: 'instagram', label: '📸 Instagram' },
-  { value: 'telegram', label: '📱 Telegram' },
-  { value: 'recommendation', label: '👥 Tavsiya (Do\'stlar)' },
-  { value: 'banner', label: '🏢 Ko\'cha banneri' },
-  { value: 'google', label: '🔍 Google qidiruv' },
-  { value: 'website', label: '🌐 Veb-sayt' },
-  { value: 'tv', label: '📺 Televizor' },
-  { value: 'repeat', label: '🔄 Qayta kelish' },
-  { value: 'other', label: '📌 Boshqa' },
+  'none', 'instagram', 'telegram', 'recommendation', 'banner', 'google', 'website', 'tv', 'repeat', 'other'
 ];
 
 const Reception = forwardRef(function Reception(props, ref) {
-  const { t } = useTranslation();
+  const { t, lang } = useTranslation();
   const toast = useToast();
 
   const [patient, setPatient] = useState({ ...EMPTY_PATIENT });
@@ -191,7 +182,7 @@ const Reception = forwardRef(function Reception(props, ref) {
       const newShift = { ...res, type, status: 'active', id: res.id };
       setActiveShift(newShift);
       setShiftSummary(null);
-      toast.success(`${type === 'day' ? 'Kunduzgi' : 'Kechki'} smena boshlandi.`);
+      toast.success(`${type === 'day' ? t('reception.dayShift') : t('reception.nightShift')} ${t('common.success')}`);
     } catch(e) {
       toast.error(e.message);
     }
@@ -516,7 +507,7 @@ const Reception = forwardRef(function Reception(props, ref) {
   }
 
   function formatPrice(n) {
-    return Number(n).toLocaleString('uz-UZ');
+    return Number(n).toLocaleString(lang === 'uz' ? 'uz-UZ' : lang === 'ru' ? 'ru-RU' : 'en-US');
   }
 
   function paymentIcon(type) {
@@ -616,14 +607,14 @@ const Reception = forwardRef(function Reception(props, ref) {
                       placeholder={t('reception.address')} />
                   </div>
                   <div className="form-group">
-                    <label>📣 Qayerdan eshitdi?</label>
-                    <select className="form-input" value={patient.source || ''}
+                    <label>{t('reception.sources.title')}</label>
+                    <select className="form-input" value={patient.source || 'none'}
                       onChange={e => {
                         const val = e.target.value;
                         setPatient(prev => ({...prev, source: val}));
                       }}>
                       {PATIENT_SOURCES.map(s => (
-                        <option key={s.value} value={s.value}>{s.label}</option>
+                        <option key={s} value={s}>{t(`reception.sources.${s}`)}</option>
                       ))}
                     </select>
                   </div>
