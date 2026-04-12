@@ -1,0 +1,79 @@
+﻿node.exe : - Searching depende
+ncy tree
+At line:1 char:1
++ & "C:\Program Files\nodejs/n
+ode.exe" "C:\Program Files\nod
+ejs/node_mo ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~
+    + CategoryInfo          : 
+    NotSpecified: (- Searchi  
+  ng dependency tree:String   
+ ) [], RemoteException
+    + FullyQualifiedErrorId : 
+    NativeCommandError
+ 
+Attempting to build a module w
+ith a space in the path
+See https://github.com/nodejs/
+node-gyp/issues/65#issuecommen
+t-368820565 for reasons why th
+is may not work
+(node:9872) [DEP0169] Deprecat
+ionWarning: `url.parse()` beha
+vior is not standardized and p
+rone to errors that have secur
+ity implications. Use the WHAT
+WG URL API instead. CVEs are n
+ot issued for `url.parse()` vu
+lnerabilities.
+(Use `node --trace-deprecation
+ ...` to show where the warnin
+g was created)
+
+Error: Could not find any Visu
+al Studio installation to use
+    at VisualStudioFinder.fail
+ (D:\clinic crm\crm 2\node_mod
+ules\node-gyp\lib\find-visuals
+tudio.js:118:11)
+    at VisualStudioFinder.find
+VisualStudio (D:\clinic crm\cr
+m 2\node_modules\node-gyp\lib\
+find-visualstudio.js:74:17)
+    at process.processTicksAnd
+Rejections (node:internal/proc
+ess/task_queues:104:5)
+    at async createBuildDir (D
+:\clinic crm\crm 2\node_module
+s\node-gyp\lib\configure.js:11
+2:18)
+    at async process.<anonymou
+s> (file:///D:/clinic%20crm/cr
+m%202/node_modules/@electron/r
+ebuild/lib/module-type/node-gy
+p/worker.js:22:13)
+
+Ô£û Rebuild Failed
+
+An unhandled error occurred in
+side electron-rebuild
+node-gyp failed to rebuild 'D:
+\clinic crm\crm 2\node_modules
+\@serialport\bindings-cpp'
+
+Error: node-gyp failed to rebu
+ild 'D:\clinic crm\crm 2\node_
+modules\@serialport\bindings-c
+pp'
+    at ChildProcess.<anonymous
+> (file:///D:/clinic%20crm/crm
+%202/node_modules/@electron/re
+build/lib/module-type/node-gyp
+/node-gyp.js:114:24)
+    at ChildProcess.emit (node
+:events:508:28)
+    at ChildProcess._handle.on
+exit (node:internal/child_proc
+ess:294:12)

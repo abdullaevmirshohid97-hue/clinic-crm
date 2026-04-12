@@ -1,54 +1,22 @@
 {
-  "name": "clinic-crm",
-  "version": "1.0.0",
-  "description": "Clinic CRM — Bemorlar boshqaruv tizimi",
-  "main": "electron/main.js",
+  "name": "clary",
+  "private": true,
+  "description": "CLARY SaaS Platform for Healthcare",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview",
-    "electron:dev": "concurrently \"vite\" \"wait-on http://localhost:5200 && electron .\"",
-    "electron:build": "vite build && electron-builder",
-    "start": "electron ."
-  },
-  "dependencies": {
-    "@supabase/supabase-js": "^2.102.1",
-    "better-sqlite3": "^9.4.3",
-    "escpos": "^2.2.0",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "react-hot-toast": "^2.6.0",
-    "uuid": "^9.0.0",
-    "xlsx": "^0.18.5"
+    "dev:clinic": "npm run dev -w apps/clinic-app",
+    "dev:admin": "npm run dev -w apps/admin-app",
+    "dev:backend": "npm run dev -w apps/backend",
+    "dev": "concurrently \"npm:dev:backend\" \"npm:dev:admin\" \"npm:dev:clinic\"",
+    "test": "npm run test -w apps/clinic-app",
+    "build": "npm run build --workspaces --if-present",
+    "install:all": "npm install"
   },
   "devDependencies": {
-    "@types/react": "^18.2.64",
-    "@types/react-dom": "^18.2.21",
-    "@vitejs/plugin-react": "^4.2.1",
-    "concurrently": "^8.2.2",
-    "electron": "^28.3.3",
-    "electron-builder": "^24.13.3",
-    "supabase": "^2.84.10",
-    "vite": "^5.1.4",
-    "wait-on": "^7.2.0"
-  },
-  "build": {
-    "appId": "com.clinic.crm",
-    "productName": "Clinic CRM",
-    "directories": {
-      "output": "release"
-    },
-    "files": [
-      "dist/**/*",
-      "electron/**/*",
-      "public/**/*",
-      "package.json"
-    ],
-    "asar": true,
-    "npmRebuild": false,
-    "win": {
-      "target": "portable",
-      "icon": "public/icon.png"
-    }
+    "typescript": "^5.3.3",
+    "concurrently": "^8.2.2"
   }
 }

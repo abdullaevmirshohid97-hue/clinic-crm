@@ -1,15 +1,13 @@
-import { Redis } from 'ioredis';
+import { redisClient } from '../../config/redis';
 import { env } from '../../config/env';
 import { supabase } from '../../config/supabase';
 import logger from '../../config/logger';
 
-const redis = new Redis(env.REDIS_URL);
-
 export class QueueService {
   static async addToQueue(clinicId: string, patientId: string, doctorId: string, doctorPrefix: string) {
     const key = `queue:${clinicId}:${doctorId}`;
-    const count = await redis.incr(key);
-    await redis.expireat(key, this._getMidnightTimestamp());
+    const count = await redisClient.incr(key);
+    await redisClient.expireat(key, this._getMidnightTimestamp());
 
     const number = `${doctorPrefix}${count}`;
 

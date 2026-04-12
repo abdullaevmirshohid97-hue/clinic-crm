@@ -1,12 +1,12 @@
 import { Worker, Job } from 'bullmq';
-import IORedis from 'ioredis';
+import { createWorkerConnection } from '../config/redis';
 import axios from 'axios';
 import { env } from '../config/env';
 import { smsQueueName } from '../config/queue';
 import logger from '../config/logger';
 import { supabase } from '../config/supabase';
 
-const connection = new IORedis(env.REDIS_URL, { maxRetriesPerRequest: null });
+const connection = createWorkerConnection();
 
 interface SMSPayload {
   clinicId: string;

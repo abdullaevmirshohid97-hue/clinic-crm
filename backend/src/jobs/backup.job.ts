@@ -1,5 +1,5 @@
 import { Worker, Job } from 'bullmq';
-import IORedis from 'ioredis';
+import { createWorkerConnection } from '../config/redis';
 import { env } from '../config/env';
 import { backupQueueName } from '../config/queue';
 import logger from '../config/logger';
@@ -12,7 +12,7 @@ import { pipeline } from 'stream';
 import axios from 'axios';
 import FormData from 'form-data';
 
-const connection = new IORedis(env.REDIS_URL, { maxRetriesPerRequest: null });
+const connection = createWorkerConnection();
 const pipe = promisify(pipeline);
 
 interface BackupPayload {
