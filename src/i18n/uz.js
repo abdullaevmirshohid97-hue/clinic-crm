@@ -15,6 +15,7 @@ const uz = {
     help: 'Yordam',
     laboratory: '🧪 Laboratoriya',
     inventory: '📦 Omborxona',
+    pharmacy: '💊 Dorixona',
     staff: '👥 Xodimlar',
     marketing: '📣 Marketing',
     archive: '📂 Arxiv',
@@ -115,6 +116,19 @@ const uz = {
     exit: 'Chiqish',
     statsionarBadge: 'Statsionarda',
     prefix: 'Navbat prefiksi',
+    sources: {
+      title: '📣 Qayerdan eshitdi?',
+      none: '— Tanlanmagan —',
+      instagram: '📸 Instagram',
+      telegram: '📱 Telegram',
+      recommendation: '👥 Tavsiya (Do\'stlar)',
+      banner: '🏢 Ko\'cha banneri',
+      google: '🔍 Google qidiruv',
+      website: '🌐 Veb-sayt',
+      tv: '📺 Televizor',
+      repeat: '🔄 Qayta kelish',
+      other: '📌 Boshqa'
+    }
   },
   queue: {
     title: 'Navbat',
@@ -175,6 +189,41 @@ const uz = {
     addPromo: 'Aksiya qo\'shish',
     activePatients: 'Davolanayotganlar',
     history: 'Tarix',
+    diets: {
+      standard: 'Oddiy',
+      diet5: 'Parhez 5 (Oshqozon)',
+      diet9: 'Parhez 9 (Qandli diabet)',
+      no_salt: 'Tuzsiz',
+      liquid: 'Suyuq ovqat'
+    },
+    tabs: {
+      map: '🗺️ Xarita',
+      list: '📋 Ro\'yxat',
+      nurse: '👩‍⚕️ Hamshira Posti',
+      kitchen: '🍲 Oshxona',
+      settings: '⚙️ Sozlamalar'
+    },
+    vitals: {
+      title: 'Hayatiy ko\'rsatkichlar',
+      temperature: 'Harorat (°C)',
+      bp: 'Qon bosimi',
+      pulse: 'Puls',
+      weight: 'Vazn (kg)',
+      history: 'History',
+      save_success: 'Hayotiy ko\'rsatkichlar saqlandi'
+    },
+    discharge: {
+      title: 'Bemorga javob berish (Chiqarish)',
+      days: 'Kunlar',
+      room_price: 'Xona narxi',
+      meal_price: 'Ovqat narxi',
+      additional_debt: 'Qo\'shimcha qarz (Dorixona/Laboratoriya)',
+      grand_total: 'Jami xarajat',
+      deposit_deduction: 'Depozitdan chegirish',
+      to_pay: 'To\'lash kerak',
+      confirm: 'Tasdiqlash va Chiqarish',
+      success: 'ro\'yxatdan chiqarildi!'
+    }
   },
   journal: {
     title: 'Jurnal',
@@ -217,6 +266,58 @@ const uz = {
     add_expense: '💸 + Xarajat',
     z_report: '🔒 Smenani Yopish (Z-Report)',
     pay_debt: '🔴 Qarzni yopish',
+    live_balance: '💰 Joriy Live Balans',
+    financial_control: 'Kassa operatsiyalari va moliyaviy nazorat',
+    filters: '🔍 Filtrlar',
+    refresh: '🔄 Yangilash',
+    new_reception: '➕ Yangi Qabul',
+    net_revenue: 'Sof Tushum (Net)',
+    current_debts: 'Joriy Qarz (Debts)',
+    inkassatsiya: '⚠️ DIQQAT: Inkassatsiya qiling!',
+    period: 'Davr:',
+    search_placeholder: '🔍 Qidiruv (Ism, shifokor, xizmat nomi)...',
+    table: {
+      date: 'Sana',
+      time: 'Vaqt',
+      doctor: 'Shifokor',
+      category: 'Kategoriya',
+      patient: 'Bemor Ismi',
+      service: 'Xizmat Nomi',
+      commission: 'Ulush',
+      room: 'Xona',
+      amount: 'Summa',
+      payment: 'To\'lov',
+      discount: 'Chegirma',
+      status: 'Status',
+      cashier: 'Kassir',
+      actions: 'Amallar'
+    },
+    footer: {
+      total: 'JAMI:',
+      cash: 'NAQD:',
+      card: 'KARTA:',
+      debt: 'QARZ:',
+      count: 'Operatsiya'
+    },
+    expense_modal: {
+      title: '💸 Yangi Xarajat / Chiqim',
+      category: 'Xarajat Toifasi',
+      amount: 'Summa (UZS)',
+      description: 'Izoh / Sabab',
+      categories: {
+        household: 'Xo\'jalik mollari',
+        salary: 'Xodimlar oyligi',
+        rent: 'Bino ijarasi',
+        medicine: 'Dori-darmon / Reaktiv',
+        marketing: 'Reklama / Marketing',
+        other: 'Boshqa xarajatlar'
+      }
+    },
+    status: {
+      ok: '🟢 OK',
+      refunded: '🟡 Qaytarilgan',
+      debt_pay: '🔴 Qarz (To\'lash)'
+    }
   },
   analytics: {
     title: 'Analitika',
@@ -425,6 +526,60 @@ const uz = {
     f11: 'F11 — To\'liq ekran',
     f12: 'F12 — Saqlash (Cheksiz)',
   },
+  pharmacy: {
+    title: '💊 Dorixona',
+    searchPlaceholder: 'Dori qidirish...',
+    newMedicine: '➕ Yangi dori',
+    refresh: '🔄 Yangilash',
+    totalMedicines: 'Jami dorilar',
+    lowStock: 'Kam qolgan (≤10)',
+    expired: 'Muddati o\'tgan',
+    totalValue: 'Jami qiymat',
+    table: {
+      name: 'Nomi',
+      category: 'Kategoriya',
+      qty: 'Miqdori',
+      unit: 'Birlik',
+      price: 'Narxi',
+      expiry: 'Muddat',
+      actions: 'Amallar'
+    },
+    empty: 'Dorixona bo\'sh',
+    editMedicine: '✏️ Dori tahrirlash',
+    addMedicine: '➕ Yangi dori qo\'shish',
+    form: {
+      name: 'Dori nomi *',
+      category: 'Kategoriya',
+      categoryPh: 'Tabletka, sirop...',
+      unit: 'Birlik',
+      qty: 'Miqdori *',
+      price: 'Narxi (so\'m)',
+      expiry: 'Yaroqlilik muddati'
+    },
+    units: {
+      dona: 'Dona',
+      quti: 'Quti',
+      blister: 'Blister',
+      ml: 'ml',
+      kg: 'kg'
+    },
+    importExcel: '📥 Excel Kirim (Prixod)',
+    saleCart: '🛒 Savdoga',
+    saleTitle: '🛒 Savdoni Rasmiylashtirish',
+    saleTable: {
+      name: 'Dori Nomi',
+      qty: 'Soni',
+      price: 'Narxi',
+      action: 'Amal'
+    },
+    emptyCart: 'Savatda dori yo\'q',
+    inpatientSelect: 'Statsionar bemor (Ixtiyoriy)',
+    cashSale: '-- Oddiy Savdo (Kassa) --',
+    paymentMethod: 'To\'lov usuli *',
+    debtOption: 'Qarzga (Palataga yozish)',
+    totalPayment: 'Jami To\'lov:',
+    acceptBtn: '💳 Qabul qilish'
+  }
 };
 
 export default uz;

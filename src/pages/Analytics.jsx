@@ -3,6 +3,7 @@ import { useTranslation } from '../i18n/LanguageContext';
 import { useToast } from '../components/Toast';
 import Modal from '../components/Modal';
 import { db } from '../utils/db';
+import { supabase } from '../utils/supabase';
 import { printReceipt } from '../utils/printer';
 
 export default function Analytics() {
@@ -45,6 +46,18 @@ export default function Analytics() {
   const [insights, setInsights] = useState([]);
   const [expensePieData, setExpensePieData] = useState([]);
 
+  // ===== PHARMACY ANALYTICS STATE =====
+  const [pharmPeriod, setPharmPeriod] = useState('week'); // hour|day|week|month|year|custom
+  const [pharmFrom,   setPharmFrom]   = useState('');
+  const [pharmTo,     setPharmTo]     = useState('');
+  const [pharmData, setPharmData] = useState({
+    totalMeds: 0, lowStock: 0, expirySoon: 0,
+    totalStockVal: 0, totalRevenue: 0, totalProfit: 0,
+    topSellers: [], slowSellers: [], mostProfit: [],
+    hourly: [], daily: [], journal: [],
+  });
+  const [pharmLoading, setPharmLoading] = useState(false);
+
   function getPeriodCondition() {
     const d1 = dateFrom || new Date().toISOString().split('T')[0];
     const d2 = dateTo || new Date().toISOString().split('T')[0];
@@ -67,7 +80,108 @@ export default function Analytics() {
     return `date(a.createdAt) = '${now.toISOString().split('T')[0]}'`;
   }
 
-  useEffect(() => { loadStats(); }, [period, dateFrom, dateTo]);
+  useEffect(() => { 
+    loadStats(); 
+    loadPharmStats();
+  }, [period, dateFrom, dateTo]);
+
+  useEffect(() => { 
+    if (activeTab === 'pharmacy') loadPharmStats(); 
+  }, [activeTab, pharmPeriod, pharmFrom, pharmTo]);
+
+  async function loadPharmStats() {
+    setPharmLoading(true);
+    try {
+      const { data: meds } = await supabase.from('pharmacy').select('*');
+      const today = new Date().toISOString().split('T')[0];
+      const soon  = new Date(); soon.setDate(soon.getDate() + 30);
+      const soonStr = soon.toISOString().split('T')[0];
+
+      const totalMeds   = meds?.length || 0;
+      const lowStock    = meds?.filter(m => m.qty <= 10).length || 0;
+      const expirySoon  = meds?.filter(m => m.expiry && m.expiry <= soonStr).length || 0;
+      const totalStockVal = meds?.reduce((s,m) => s + (m.qty||0)*(m.price||0), 0) || 0;
+
+      // Time filter for journal
+      let jFrom, jTo;
+      const now = new Date();
+      if (pharmPeriod === 'hour') {
+        jFrom = new Date(now - 3600000).toISOString();
+        jTo   = now.toISOString();
+      } else if (pharmPeriod === 'day') {
+        jFrom = new Date(now.setHours(0,0,0,0)).toISOString();
+        jTo   = new Date().toISOString();
+      } else if (pharmPeriod === 'week') {
+        const d = new Date(); d.setDate(d.getDate()-7);
+        jFrom = d.toISOString(); jTo = new Date().toISOString();
+      } else if (pharmPeriod === 'month') {
+        const d = new Date(); d.setMonth(d.getMonth()-1);
+        jFrom = d.toISOString(); jTo = new Date().toISOString();
+      } else if (pharmPeriod === 'year') {
+        const d = new Date(); d.setFullYear(d.getFullYear()-1);
+        jFrom = d.toISOString(); jTo = new Date().toISOString();
+      } else if (pharmPeriod === 'custom' && pharmFrom && pharmTo) {
+        jFrom = pharmFrom + 'T00:00:00'; jTo = pharmTo + 'T23:59:59';
+      } else {
+        const d = new Date(); d.setDate(d.getDate()-7);
+        jFrom = d.toISOString(); jTo = new Date().toISOString();
+      }
+
+      let jQuery = supabase.from('pharmacy_journal').select('*').eq('entry_type','chiqim');
+      if (jFrom) jQuery = jQuery.gte('created_at', jFrom);
+      if (jTo)   jQuery = jQuery.lte('created_at', jTo);
+      const { data: jnl } = await jQuery.order('created_at', { ascending: false }).limit(1000);
+      const journal = jnl || [];
+
+      // Aggregate by medicine name
+      const agg = {};
+      journal.forEach(j => {
+        if (!agg[j.name]) agg[j.name] = { name: j.name, category: j.category||'Boshqa', soldQty:0, revenue:0, txCount:0 };
+        agg[j.name].soldQty  += j.qty_out || 0;
+        agg[j.name].revenue  += (j.qty_out||0)*(j.price||0);
+        agg[j.name].txCount  += 1;
+      });
+      const aggArr = Object.values(agg).sort((a,b)=>b.soldQty-a.soldQty);
+
+      // Profit calc (using cost_price from meds)
+      const profitArr = aggArr.map(a => {
+        const med = meds?.find(m => m.name === a.name);
+        const cp  = med?.cost_price || 0;
+        return { ...a, profit: a.soldQty*(( a.revenue/Math.max(a.soldQty,1)) - cp) };
+      }).sort((a,b)=>b.profit-a.profit);
+
+      // Hourly distribution (last 24h)
+      const hourly = Array.from({length:24}, (_,h) => ({ h, qty:0, revenue:0 }));
+      journal.forEach(j => {
+        const h = new Date(j.created_at).getHours();
+        hourly[h].qty     += j.qty_out||0;
+        hourly[h].revenue += (j.qty_out||0)*(j.price||0);
+      });
+
+      // Daily distribution
+      const dailyMap = {};
+      journal.forEach(j => {
+        const d = j.created_at?.split('T')[0] || '';
+        if (!d) return;
+        if (!dailyMap[d]) dailyMap[d] = { d, qty:0, revenue:0 };
+        dailyMap[d].qty     += j.qty_out||0;
+        dailyMap[d].revenue += (j.qty_out||0)*(j.price||0);
+      });
+      const dailyArr = Object.values(dailyMap).sort((a,b)=>a.d>b.d?1:-1).slice(-30);
+
+      const totalRevenue = aggArr.reduce((s,a)=>s+a.revenue,0);
+      const totalProfit  = profitArr.reduce((s,a)=>s+a.profit,0);
+
+      setPharmData({
+        totalMeds, lowStock, expirySoon, totalStockVal, totalRevenue, totalProfit,
+        topSellers:  aggArr.slice(0,10),
+        slowSellers: [...aggArr].sort((a,b)=>a.soldQty-b.soldQty).slice(0,10),
+        mostProfit:  profitArr.slice(0,10),
+        hourly, daily: dailyArr, journal: journal.slice(0,100),
+      });
+    } catch(e) { toast.error(e.message); }
+    setPharmLoading(false);
+  }
 
   async function loadStats() {
     setLoadingStats(true);
@@ -455,12 +569,14 @@ export default function Analytics() {
   const netProfit = stats.totalRevenue - totalExpenses;
 
   const statCards = [
-    { icon: '💰', label: t('analytics.dailyRevenue'), value: formatPrice(stats.totalRevenue), color: 'var(--accent-primary)' },
-    { icon: '🏥', label: t('analytics.statsionarRevenue') || 'Statsionar tushumi', value: formatPrice(statsionarRevenue), color: 'var(--accent-warning)' },
-    { icon: '🩺', label: t('analytics.serviceRevenue') || 'Xizmat tushumi', value: formatPrice(serviceRevenue), color: 'var(--accent-info)' },
-    { icon: '📉', label: t('analytics.expenses'), value: formatPrice(totalExpenses), color: 'var(--accent-danger)' },
-    { icon: '📈', label: t('analytics.netProfit'), value: formatPrice(netProfit), color: 'var(--accent-success)' },
-    { icon: '🎫', label: t('analytics.averageCheck'), value: formatPrice(averageCheck), color: 'var(--accent-success)' },
+    { icon: '💰', label: t('analytics.dailyRevenue') || 'Umumiy tushum', value: formatPrice(stats.totalRevenue), color: 'var(--accent-primary)', sub: t('analytics.period') },
+    { icon: '🏥', label: t('analytics.statsionarRevenue') || 'Statsionar tushumi', value: formatPrice(statsionarRevenue), color: 'var(--accent-warning)', sub: 'Inpatient' },
+    { icon: '🩺', label: t('analytics.serviceRevenue') || 'Xizmat tushumi', value: formatPrice(serviceRevenue), color: 'var(--accent-info)', sub: 'Outpatient' },
+    { icon: '👥', label: t('analytics.totalPatients') || 'Bemorlar soni', value: stats.totalPatients, color: '#8b5cf6', sub: 'Nafari' },
+    { icon: '🎫', label: t('analytics.averageCheck') || "O'rtacha chek", value: formatPrice(averageCheck), color: 'var(--accent-success)', sub: "so'm" },
+    { icon: '📉', label: t('analytics.expenses') || 'Xarajatlar', value: formatPrice(totalExpenses), color: 'var(--accent-danger)', sub: 'Davriy' },
+    { icon: '💊', label: 'Dorixona foydasi', value: formatPrice(pharmData.totalProfit), color: '#06b6d4', sub: 'Soffoyda' },
+    { icon: '📈', label: t('analytics.netProfit') || 'Klinika sof foydasi', value: formatPrice(netProfit + (pharmData.totalProfit || 0)), color: 'var(--accent-success)', sub: 'Jami' },
   ];
 
   function paymentLabel(type) {
@@ -505,6 +621,12 @@ export default function Analytics() {
           <button className={`btn ${activeTab === 'statsionar' ? 'btn-primary' : 'btn-ghost'}`} onClick={()=>setActiveTab('statsionar')}>🏥 {t('inpatient.title')}</button>
           <button className={`btn ${activeTab === 'payouts' ? 'btn-primary' : 'btn-ghost'}`} onClick={()=>setActiveTab('payouts')}>💸 {t('analytics.payouts')}</button>
           <button className={`btn ${activeTab === 'payout_history' ? 'btn-primary' : 'btn-ghost'}`} onClick={()=>setActiveTab('payout_history')}>📜 Tarix</button>
+          <button
+            className={`btn ${activeTab === 'pharmacy' ? 'btn-primary' : 'btn-ghost'}`}
+            style={activeTab !== 'pharmacy' ? { background: 'linear-gradient(135deg,rgba(124,58,237,0.15),rgba(79,70,229,0.12))', borderColor: '#7c3aed', color: '#7c3aed' } : {}}
+            onClick={()=>setActiveTab('pharmacy')}>
+            💊 Dorixona
+          </button>
           <button className="btn btn-danger" onClick={()=>setShowExpenseModal(true)}>📅 {t('analytics.expensesPeriod')}</button>
         </div>
         <div className="page-header-actions" style={{display:'flex', gap: 10, alignItems:'center', flexWrap:'wrap'}}>
@@ -537,18 +659,48 @@ export default function Analytics() {
               marginBottom: '30px'
             }}>
               {statCards.map((card, i) => (
-                <div key={i} className="card glass-card stat-card" style={{ 
-                  display:'flex', 
-                  alignItems:'center', 
-                  gap:20, 
-                  padding:25,
-                  borderLeft: `5px solid ${card.color}`
-                }}>
-                  <div className="stat-icon" style={{fontSize: 32}}>{card.icon}</div>
-                  <div className="stat-info">
-                    <div className="stat-value" style={{fontSize: 24, fontWeight:'bold'}}>{card.value} { (i === 0 || i === 1) ? t('common.sum') : ''}</div>
-                    <div className="stat-label" style={{color:'var(--text-secondary)'}}>{card.label}</div>
+                <div key={i} className="card glass-card stat-card-v2" style={{ 
+                  padding: '20px',
+                  borderRadius: '16px',
+                  position: 'relative',
+                  overflow: 'hidden',
+                  background: 'var(--bg-card)',
+                  border: '1px solid var(--border-color)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'space-between',
+                  transition: 'transform 0.2s',
+                  cursor: 'default'
+                }} onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-5px)'} onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}>
+                  <div style={{ display: 'flex', justifyContent: 'between', alignItems: 'flex-start', marginBottom: 15 }}>
+                     <div style={{ 
+                       width: 44, 
+                       height: 44, 
+                       borderRadius: 12, 
+                       background: `${card.color}15`, 
+                       display: 'flex', 
+                       alignItems: 'center', 
+                       justifyContent: 'center', 
+                       fontSize: 22,
+                       color: card.color
+                     }}>
+                       {card.icon}
+                     </div>
+                     <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', letterSpacing: '0.5px' }}>{card.sub}</div>
                   </div>
+                  <div>
+                    <div style={{ fontSize: 22, fontWeight: 900, color: 'var(--text-main)', marginBottom: 4 }}>{card.value}</div>
+                    <div style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 500 }}>{card.label}</div>
+                  </div>
+                  <div style={{ 
+                    position: 'absolute', 
+                    bottom: 0, 
+                    right: 0, 
+                    width: '30%', 
+                    height: '2px', 
+                    background: card.color,
+                    boxShadow: `0 0 10px ${card.color}`
+                  }}></div>
                 </div>
               ))}
             </div>
@@ -626,23 +778,91 @@ export default function Analytics() {
               </div>
             )}
 
-            <div className="charts-grid" style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(400px, 1fr))', gap:30, marginBottom: 30}}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: 30, marginBottom: 30 }}>
+              {/* Top Doctors */}
+              <div className="card glass-card">
+                <div className="card-header">
+                  <h3>👨‍⚕️ {t('analytics.doctorResults') || 'Top Shifokorlar'}</h3>
+                </div>
+                <div className="card-body">
+                  {doctorStats.length === 0 ? (
+                    <p className="empty-state">{t('common.noData')}</p>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 15 }}>
+                      {doctorStats.map((d, i) => (
+                        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }}
+                          onClick={() => { setActiveTab('payouts'); }}
+                          title={t('analytics.detailCalcHint')}>
+                          <div style={{ minWidth: 140, fontWeight: 600, fontSize: 13 }}>{d.fullName}</div>
+                          <div style={{ flex: 1, height: 26, background: 'var(--bg-input)', borderRadius: 4, overflow: 'hidden' }}>
+                            <div style={{
+                              height: '100%',
+                              width: `${Math.max(5, (d.revenue / (doctorStats[0]?.revenue || 1)) * 100)}%`,
+                              background: 'linear-gradient(90deg, #6366f1, #a855f7)',
+                              borderRadius: 4,
+                              display: 'flex', alignItems: 'center', paddingLeft: 8,
+                              fontSize: 11, color: '#fff', fontWeight: 700,
+                            }}>
+                              {formatPrice(d.revenue)}
+                            </div>
+                          </div>
+                          <span className="badge badge-info" style={{fontSize:10, minWidth:60}}>{d.cnt} qabul</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Top Services */}
+              <div className="card glass-card">
+                <div className="card-header">
+                  <h3>📊 {t('analytics.topServices') || 'Top Xizmatlar'}</h3>
+                </div>
+                <div className="card-body">
+                  {serviceStats.length === 0 ? (
+                    <p className="empty-state">{t('common.noData')}</p>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 15 }}>
+                      {serviceStats.map((s, i) => (
+                        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                          <div style={{ minWidth: 140, fontWeight: 600, fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.name}</div>
+                          <div style={{ flex: 1, height: 26, background: 'var(--bg-input)', borderRadius: 4, overflow: 'hidden' }}>
+                            <div style={{
+                              height: '100%',
+                              width: `${Math.max(5, (s.cnt / (serviceStats[0]?.cnt || 1)) * 100)}%`,
+                              background: 'linear-gradient(90deg, #10b981, #06b6d4)',
+                              borderRadius: 4,
+                              display: 'flex', alignItems: 'center', paddingLeft: 8,
+                              fontSize: 11, color: '#fff', fontWeight: 700,
+                            }}>
+                              {s.cnt} ta
+                            </div>
+                          </div>
+                          <span style={{ fontSize: 12, fontWeight: 700, minWidth: 90, textAlign: 'right' }}>{formatPrice(s.revenue)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
               {/* Direction Breakdown */}
               <div className="card glass-card">
                 <div className="card-header">
-                  <h3>🏢 {t('analytics.directionBreakdown')}</h3>
+                  <h3>🏢 {t('analytics.directionBreakdown') || 'Yo\'nalishlar'}</h3>
                 </div>
                 <div className="card-body">
                    {categoryStats.length === 0 ? <p className="empty-state">{t('common.noData')}</p> : (
-                     <div style={{display:'flex', flexDirection:'column', gap: 15}}>
+                     <div style={{display:'flex', flexDirection:'column', gap: 18}}>
                         {categoryStats.map((c, i) => {
                           const total = categoryStats.reduce((s, x) => s + x.cnt, 0);
                           const pct = ((c.cnt / total) * 100).toFixed(1);
                           return (
                             <div key={i}>
-                               <div style={{display:'flex', justifyContent:'space-between', marginBottom: 5, fontSize: 13}}>
-                                  <span style={{fontWeight: 600}}>{c.name || t('analytics.other')}</span>
-                                  <span>{c.cnt} {t('analytics.units')} ({pct}%)</span>
+                               <div style={{display:'flex', justifyContent:'space-between', marginBottom: 6, fontSize: 13}}>
+                                  <span style={{fontWeight: 700}}>{c.name || 'Boshqa'}</span>
+                                  <span style={{color: 'var(--text-secondary)'}}>{c.cnt} qabul ({pct}%)</span>
                                </div>
                                <div style={{height: 10, background:'var(--bg-input)', borderRadius: 10, overflow:'hidden'}}>
                                   <div style={{height:'100%', width: `${pct}%`, background: 'var(--accent-primary)', borderRadius: 10}}></div>
@@ -655,119 +875,55 @@ export default function Analytics() {
                 </div>
               </div>
 
+              {/* Payment Analysis */}
               <div className="card glass-card">
                 <div className="card-header">
-                  <h3>👨‍⚕️ {t('analytics.doctorResults')}</h3>
+                  <h3>💳 {t('analytics.paymentAnalysis') || 'To\'lov turlari'}</h3>
                 </div>
                 <div className="card-body">
-                  {doctorStats.length === 0 ? (
+                  {paymentStats.length === 0 ? (
                     <p className="empty-state">{t('common.noData')}</p>
                   ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 15 }}>
-                      {doctorStats.map((d, i) => (
-                        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }}
-                          onClick={() => { setActiveTab('payouts'); }}
-                          title={t('analytics.detailCalcHint')}>
-                          <div style={{ minWidth: 140, fontWeight: 600, fontSize: 13, textDecoration: 'underline' }}>{d.fullName}</div>
-                          <div style={{ flex: 1, height: 26, background: 'var(--bg-input)', borderRadius: 4, overflow: 'hidden' }}>
-                            <div style={{
-                              height: '100%',
-                              width: `${Math.max(5, (d.revenue / (doctorStats[0]?.revenue || 1)) * 100)}%`,
-                              background: 'linear-gradient(90deg, var(--accent-primary), var(--accent-secondary))',
-                              borderRadius: 4,
-                              display: 'flex', alignItems: 'center', paddingLeft: 8,
-                              fontSize: 12, color: '#fff', fontWeight: 600,
-                            }}>
-                              {formatPrice(d.revenue)}
+                    <div style={{display:'flex', flexDirection:'column', gap: 20}}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
+                        <div style={{ width: 120, height: 120, borderRadius: '50%', background: buildDonutGradient(), position: 'relative', flexShrink: 0 }}>
+                           <div style={{ position: 'absolute', top: 20, left: 20, right: 20, bottom: 20, background: 'var(--bg-card)', borderRadius: '50%', display:'flex', alignItems:'center', justifyContent:'center', fontSize: 12, fontWeight: 900, textAlign:'center', lineHeight:1 }}>
+                              {formatPrice(totalPaymentRevenue)}
+                           </div>
+                        </div>
+                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                          {paymentStats.map((p, i) => (
+                            <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 12 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <span style={{ width: 8, height: 8, borderRadius: '50%', background: paymentColor(p.paymentType) }}></span>
+                                <span>{paymentLabel(p.paymentType)}</span>
+                              </div>
+                              <span style={{ fontWeight: 700 }}>{((p.revenue / totalPaymentRevenue) * 100).toFixed(0)}%</span>
                             </div>
-                          </div>
-                          <span className="badge badge-info" style={{fontSize:10, minWidth:60}}>{d.cnt} {t('analytics.units')}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            <div className="card glass-card" style={{marginBottom: 30}}>
-              <div className="card-header">
-                <h3>📊 {t('analytics.topServices')}</h3>
-              </div>
-              <div className="card-body">
-                {serviceStats.length === 0 ? (
-                  <p className="empty-state">{t('common.noData')}</p>
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                    {serviceStats.map((s, i) => (
-                      <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                        <div style={{ minWidth: 140, fontWeight: 600, fontSize: 13 }}>{s.name}</div>
-                        <div style={{ flex: 1, height: 24, background: 'var(--bg-input)', borderRadius: 4, overflow: 'hidden' }}>
-                          <div style={{
-                            height: '100%',
-                            width: `${Math.max(5, (s.cnt / (serviceStats[0]?.cnt || 1)) * 100)}%`,
-                            background: 'linear-gradient(90deg, var(--accent-success), var(--accent-info))',
-                            borderRadius: 4,
-                            display: 'flex', alignItems: 'center', paddingLeft: 8,
-                            fontSize: 11, color: '#fff', fontWeight: 600,
-                          }}>
-                            {s.cnt} {t('analytics.units')}
-                          </div>
-                        </div>
-                        <span style={{ fontSize: 12, color: 'var(--text-secondary)', minWidth: 90, textAlign: 'right' }}>
-                          {formatPrice(s.revenue)}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="card glass-card" style={{marginBottom: 30}}>
-              <div className="card-header">
-                <h3>💳 {t('analytics.paymentAnalysis')}</h3>
-              </div>
-              <div className="card-body">
-                {paymentStats.length === 0 ? (
-                  <p className="empty-state">{t('common.noData')}</p>
-                ) : (
-                  <div className="payment-analysis-grid" style={{display:'grid', gridTemplateColumns:'1fr 2fr', gap:40, alignItems:'center'}}>
-                    <div className="donut-section" style={{textAlign:'center'}}>
-                      <div className="donut-chart" style={{ width:200, height:200, borderRadius:'50%', margin:'0 auto', position:'relative', background: buildDonutGradient() }}>
-                        <div className="donut-center" style={{position:'absolute', top:25, left:25, right:25, bottom:25, background:'var(--bg-card)', borderRadius:'50%', display:'flex', flexDirection:'column', justifyContent:'center', alignItems:'center'}}>
-                          <div style={{fontSize:20, fontWeight:'bold'}}>{formatPrice(totalPaymentRevenue)}</div>
-                          <div style={{fontSize:10, color:'var(--text-muted)'}}>{t('common.sum')}</div>
+                          ))}
                         </div>
                       </div>
-                    </div>
-                    <div className="payment-detail-table">
-                      <table className="data-table">
+                      <table className="data-table" style={{ fontSize: 11 }}>
                         <thead>
                           <tr>
-                            <th>{t('analytics.type')}</th>
-                            <th>{t('analytics.count')}</th>
-                            <th>{t('analytics.sum')}</th>
-                            <th>{t('analytics.share')}</th>
+                            <th>Tur</th>
+                            <th>Soni</th>
+                            <th style={{ textAlign: 'right' }}>Summa</th>
                           </tr>
                         </thead>
                         <tbody>
                           {paymentStats.map((p, i) => (
                             <tr key={i}>
-                              <td>
-                                <span className="dot" style={{display:'inline-block', width:10, height:10, borderRadius:'50%', background:paymentColor(p.paymentType), marginRight:10}}></span> 
-                                {paymentLabel(p.paymentType)}
-                              </td>
-                              <td>{p.cnt} {t('analytics.units')}</td>
-                              <td style={{fontWeight:600}}>{formatPrice(p.revenue)} {t('common.sum')}</td>
-                              <td>{((p.revenue / totalPaymentRevenue) * 100).toFixed(1)}%</td>
+                              <td>{paymentLabel(p.paymentType)}</td>
+                              <td>{p.cnt} ta</td>
+                              <td style={{ textAlign: 'right', fontWeight: 700 }}>{formatPrice(p.revenue)}</td>
                             </tr>
                           ))}
                         </tbody>
                       </table>
                     </div>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
             </div>
 
@@ -1188,6 +1344,155 @@ export default function Analytics() {
             </div>
           </div>
         )}
+
+        {/* ══════════════════ PHARMACY ANALYTICS TAB ══════════════════ */}
+        {activeTab === 'pharmacy' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 24, marginTop: 10 }}>
+            {/* ── Period Filter Bar */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'var(--bg-card)', borderRadius: 16, padding: '12px 18px', flexWrap: 'wrap' }}>
+              <div style={{ fontWeight: 800, fontSize: 14, marginRight: 4 }}>⏱ Vaqt filtri:</div>
+              {[
+                { val:'hour',  label:'Soatlik' },
+                { val:'day',   label:'Bugun' },
+                { val:'week',  label:'Haftalik' },
+                { val:'month', label:'Oylik' },
+                { val:'year',  label:'Yillik' },
+                { val:'custom',label:'Maxsus' },
+              ].map(opt => (
+                <button key={opt.val} onClick={() => setPharmPeriod(opt.val)}
+                  style={{
+                    padding: '7px 16px', borderRadius: 20, fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                    border: `2px solid ${pharmPeriod === opt.val ? '#7c3aed' : 'var(--border-color)'}`,
+                    background: pharmPeriod === opt.val ? 'linear-gradient(135deg,#7c3aed,#4f46e5)' : 'var(--bg-input)',
+                    color: pharmPeriod === opt.val ? '#fff' : 'var(--text-secondary)',
+                    transition: 'all 0.18s',
+                  }}>
+                  {opt.label}
+                </button>
+              ))}
+              {pharmPeriod === 'custom' && (
+                <>
+                  <input type="date" className="form-input" style={{ fontSize: 12, padding: '5px 10px' }} value={pharmFrom} onChange={e => setPharmFrom(e.target.value)} />
+                  <span style={{ color: 'var(--text-muted)' }}>—</span>
+                  <input type="date" className="form-input" style={{ fontSize: 12, padding: '5px 10px' }} value={pharmTo} onChange={e => setPharmTo(e.target.value)} />
+                </>
+              )}
+              <button className="btn btn-ghost btn-sm" style={{ marginLeft: 'auto' }} onClick={loadPharmStats}>
+                {pharmLoading ? '⏳' : '🔄'} Yangilash
+              </button>
+            </div>
+
+            {/* ── KPI Cards */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14 }}>
+              {[
+                { icon: '💊', label: "Jami dorilar",         val: pharmData.totalMeds,      grad: 'linear-gradient(135deg,#7c3aed,#4f46e5)', sub: 'ta nom' },
+                { icon: '⚠️', label: "Kam qolgan (≤10)",     val: pharmData.lowStock,       grad: 'linear-gradient(135deg,#f59e0b,#d97706)', sub: 'ta dori' },
+                { icon: '🗓️', label: "Muddati yaqin",        val: pharmData.expirySoon,     grad: 'linear-gradient(135deg,#ef4444,#dc2626)', sub: '30 kun içida' },
+                { icon: '📦', label: "Ombor qiymati",        val: pharmData.totalStockVal,  grad: 'linear-gradient(135deg,#0ea5e9,#0284c7)', sub: "so'm", isMoney: true },
+                { icon: '💰', label: "Davr tushumi",         val: pharmData.totalRevenue,   grad: 'linear-gradient(135deg,#10b981,#059669)', sub: "so'm", isMoney: true },
+                { icon: '📈', label: "Davr sof foyda",       val: pharmData.totalProfit,    grad: 'linear-gradient(135deg,#06b6d4,#0891b2)', sub: "so'm", isMoney: true },
+              ].map((k, i) => (
+                <div key={i} style={{ background: k.grad, borderRadius: 18, padding: '18px 20px', color: '#fff', position: 'relative', overflow: 'hidden' }}>
+                  <div style={{ fontSize: 28, marginBottom: 6 }}>{k.icon}</div>
+                  <div style={{ fontWeight: 900, fontSize: k.isMoney ? 16 : 30, marginBottom: 2, lineHeight: 1.1 }}>
+                    {k.isMoney ? Number(k.val||0).toLocaleString('uz-UZ') : (k.val||0)}
+                  </div>
+                  <div style={{ fontSize: 11, opacity: 0.85 }}>{k.label}</div>
+                  <div style={{ fontSize: 10, opacity: 0.7, marginTop: 1 }}>{k.sub}</div>
+                  <div style={{ position: 'absolute', top: -18, right: -18, width: 70, height: 70, borderRadius: '50%', background: 'rgba(255,255,255,0.1)' }} />
+                </div>
+              ))}
+            </div>
+
+            {/* ── Sales Activity Chart */}
+            {pharmData.daily.length > 0 && (
+              <div style={{ background: 'var(--bg-card)', borderRadius: 18, padding: '18px 20px', border: '1px solid var(--border-color)', marginTop:24 }}>
+                <div style={{ fontWeight: 800, fontSize: 15, marginBottom: 16 }}>📊 Kunlik savdo harakati</div>
+                <div style={{ display: 'flex', alignItems: 'flex-end', gap: 4, height: 140, borderBottom: '2px solid var(--border-color)', overflowX: 'auto', paddingBottom:5 }}>
+                   {pharmData.daily.map((d, i) => (
+                      <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: '0 0 auto', minWidth: 32 }} title={`${d.d}: ${Number(d.revenue).toLocaleString()} so'm`}>
+                        <div style={{ height: `${Math.max(Math.round((d.revenue/Math.max(...pharmData.daily.map(x=>x.revenue),1))*100), 4)}%`, width: 24, borderRadius: '6px 6px 0 0', background: 'linear-gradient(180deg,#7c3aed,#4f46e5)' }} />
+                        <div style={{ fontSize: 9, color: 'var(--text-muted)', marginTop: 5 }}>{d.d?.slice(5)}</div>
+                      </div>
+                   ))}
+                </div>
+              </div>
+            )}
+
+            {/* ── Hourly Heatmap */}
+            <div style={{ background: 'var(--bg-card)', borderRadius: 18, padding: '18px 20px', border: '1px solid var(--border-color)', marginTop:24 }}>
+              <div style={{ fontWeight: 800, fontSize: 15, marginBottom: 14 }}>⏰ Soatlik faollik</div>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                {pharmData.hourly.map((h, i) => (
+                  <div key={i} title={`${h.h}:00 — ${Number(h.revenue).toLocaleString()} so'm`} style={{
+                      width: 38, height: 38, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      background: h.revenue > 0 ? `rgba(124,58,237,${0.2 + (h.revenue / Math.max(...pharmData.hourly.map(x=>x.revenue),1)) * 0.8})` : 'var(--bg-input)',
+                      color: h.revenue > 0 ? '#fff' : 'var(--text-secondary)', fontWeight: 700, fontSize: 11
+                  }}>{h.h}</div>
+                ))}
+              </div>
+            </div>
+
+            {/* ── Top/Slow Sellers */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginTop:24 }}>
+              <div className="card glass-card p-4">
+                <h4 style={{color:'#ef4444', marginBottom:15}}>🔥 TOP 10 Sotilgan</h4>
+                <div style={{display:'flex', flexDirection:'column', gap:10}}>
+                   {pharmData.topSellers.map((s,i) => (
+                     <div key={i}>
+                        <div style={{display:'flex', justifyContent:'space-between', fontSize:12, marginBottom:4}}>
+                           <span style={{fontWeight:600}}>{s.name}</span>
+                           <span>{s.soldQty} ta</span>
+                        </div>
+                        <div style={{height:6, borderRadius:3, background:'rgba(239,68,68,0.1)', overflow:'hidden'}}>
+                           <div style={{height:'100%', width:`${(s.soldQty/(pharmData.topSellers[0]?.soldQty||1))*100}%`, background:'#ef4444'}} />
+                        </div>
+                     </div>
+                   ))}
+                </div>
+              </div>
+              <div className="card glass-card p-4">
+                <h4 style={{color:'#6366f1', marginBottom:15}}>🧊 Kam sotilgan</h4>
+                <div style={{display:'flex', flexDirection:'column', gap:10}}>
+                   {pharmData.slowSellers.map((s,i) => (
+                     <div key={i}>
+                        <div style={{display:'flex', justifyContent:'space-between', fontSize:12, marginBottom:4}}>
+                           <span style={{fontWeight:600}}>{s.name}</span>
+                           <span>{s.soldQty} ta</span>
+                        </div>
+                        <div style={{height:6, borderRadius:3, background:'rgba(99,102,241,0.1)', overflow:'hidden'}}>
+                           <div style={{height:'100%', width:`${(s.soldQty/(pharmData.slowSellers[0]?.soldQty||1||1))*100}%`, background:'#6366f1'}} />
+                        </div>
+                     </div>
+                   ))}
+                </div>
+              </div>
+            </div>
+
+            {/* ── Journal */}
+            <div style={{ background: 'var(--bg-card)', borderRadius: 18, padding: '18px 20px', border: '1px solid var(--border-color)', marginTop:24 }}>
+              <div style={{ fontWeight: 800, fontSize: 15, marginBottom: 14 }}>📒 Savdo jurnali (so'nggi 100)</div>
+              <div className="table-wrapper" style={{maxHeight: 400, overflow:'auto'}}>
+                <table className="data-table" style={{fontSize:12}}>
+                  <thead>
+                    <tr><th>Vaqt</th><th>Dori</th><th style={{textAlign:'center'}}>Soni</th><th style={{textAlign:'right'}}>Summa</th><th>To'lov</th></tr>
+                  </thead>
+                  <tbody>
+                    {pharmData.journal.map((j, i) => (
+                      <tr key={i}>
+                        <td>{new Date(j.created_at).toLocaleString('uz-UZ').slice(11, 16)}</td>
+                        <td style={{fontWeight:600}}>{j.name}</td>
+                        <td style={{textAlign:'center'}}>{j.qty_out}</td>
+                        <td style={{textAlign:'right'}}>{formatPrice((j.qty_out||0)*(j.price||0))}</td>
+                        <td>{j.payment_type}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       <Modal isOpen={!!showDoctorModal} onClose={() => setShowDoctorModal(null)} title={t('analytics.calcAndPay')}>
@@ -1302,35 +1607,35 @@ export default function Analytics() {
                <div className="form-group mt-3">
                   <label>Sana</label>
                   <input type="date" className="form-input" value={expenseForm.date} onChange={e=>setExpenseForm({...expenseForm, date:e.target.value})} />
-               </div>
-               <div className="form-group mt-3">
-                  <label>Izoh</label>
-                  <textarea className="form-input" rows={2} value={expenseForm.description} onChange={e=>setExpenseForm({...expenseForm, description:e.target.value})} />
-               </div>
-               <button className="btn btn-danger w-full mt-4" onClick={saveExpense}>💾 Saqlash</button>
-            </div>
-            <div className="card glass-card p-0" style={{maxHeight:500, overflowY:'auto'}}>
-               <table className="data-table">
-                  <thead>
-                     <tr><th>Sana</th><th>Tur</th><th>Summa</th><th>Izoh</th><th></th></tr>
-                  </thead>
-                  <tbody>
-                     {expenses.length === 0 ? (
-                       <tr><td colSpan={5} className="empty-state">Xarajatlar yo'q</td></tr>
-                     ) : expenses.map(e => (
-                       <tr key={e.id}>
-                          <td>{new Date(e.expenseDate).toLocaleDateString()}</td>
-                          <td><span className="badge badge-info">{e.category}</span></td>
-                          <td style={{fontWeight:700, color:'var(--accent-danger)'}}>{formatPrice(e.amount)}</td>
-                          <td style={{fontSize:11}}>{e.description}</td>
-                          <td><button className="btn-icon-only danger" onClick={()=>deleteExpense(e.id)}>✕</button></td>
-                       </tr>
-                     ))}
-                  </tbody>
-               </table>
-            </div>
-         </div>
-      </Modal>
+                </div>
+                <div className="form-group mt-3">
+                   <label>Izoh</label>
+                   <textarea className="form-input" rows={2} value={expenseForm.description} onChange={e=>setExpenseForm({...expenseForm, description:e.target.value})} />
+                </div>
+                <button className="btn btn-danger w-full mt-4" onClick={saveExpense}>💾 Saqlash</button>
+             </div>
+             <div className="card glass-card p-0" style={{maxHeight:500, overflowY:'auto'}}>
+                <table className="data-table">
+                   <thead>
+                      <tr><th>Sana</th><th>Tur</th><th>Summa</th><th>Izoh</th><th></th></tr>
+                   </thead>
+                   <tbody>
+                      {expenses.length === 0 ? (
+                        <tr><td colSpan={5} className="empty-state">Xarajatlar yo'q</td></tr>
+                      ) : expenses.map(e => (
+                        <tr key={e.id}>
+                           <td>{new Date(e.expenseDate).toLocaleDateString()}</td>
+                           <td><span className="badge badge-info">{e.category}</span></td>
+                           <td style={{fontWeight:700, color:'var(--accent-danger)'}}>{formatPrice(e.amount)}</td>
+                           <td style={{fontSize:11}}>{e.description}</td>
+                           <td><button className="btn-icon-only danger" onClick={()=>deleteExpense(e.id)}>✕</button></td>
+                        </tr>
+                      ))}
+                   </tbody>
+                </table>
+             </div>
+          </div>
+       </Modal>
     </div>
   );
 }

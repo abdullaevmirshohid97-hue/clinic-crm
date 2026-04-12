@@ -1,6 +1,7 @@
 import { Response, NextFunction } from 'express';
 import { supabase } from '../config/supabase';
-import { AuthenticatedRequest } from '../types/express';
+import { AuthenticatedRequest, Role } from '../types/express';
+import { getCachedRBAC, setCachedRBAC } from '../core/rbacCache';
 import logger from '../config/logger';
 
 export const authMiddleware = async (
@@ -11,7 +12,7 @@ export const authMiddleware = async (
   const authHeader = req.headers.authorization;
 
   if (!authHeader?.startsWith('Bearer ')) {
-    return res.status(401).json({ success: false, message: 'Unauthorized: No token provided' });
+    return res.status(401).json({ success: false, error: 'Unauthorized: No token provided' });
   }
 
   const token = authHeader.split(' ')[1];
@@ -20,37 +21,73 @@ export const authMiddleware = async (
     const { data: { user }, error } = await supabase.auth.getUser(token);
 
     if (error || !user) {
-      return res.status(401).json({ success: false, message: 'Unauthorized: Invalid token' });
+      return res.status(401).json({ success: false, error: 'Unauthorized: Invalid token' });
     }
 
-    // Fetch user profile to get clinic_id and role
+    // Check RBAC cache first
+    const cached = getCachedRBAC(user.id);
+    if (cached) {
+      req.user = {
+        id: user.id,
+        clinic_id: '', // Will be overridden below if needed
+        role: cached.role,
+        permissions: cached.permissions,
+      };
+
+      // Still need clinic_id from DB since it's not in cache
+      const { data: profile, error: profileError } = await supabase
+        .from('users')
+        .select('clinic_id')
+        .eq('id', user.id)
+        .single();
+
+      if (profileError || !profile) {
+        return res.status(403).json({ success: false, error: 'Forbidden: User profile not found' });
+      }
+
+      req.user.clinic_id = profile.clinic_id;
+      return next();
+    }
+
+    // No cache — fetch full profile
     const { data: profile, error: profileError } = await supabase
       .from('users')
-      .select('clinic_id, role')
+      .select('clinic_id, role, permissions')
       .eq('id', user.id)
       .single();
 
     if (profileError || !profile) {
-      return res.status(403).json({ success: false, message: 'Forbidden: User profile not found' });
+      return res.status(403).json({ success: false, error: 'Forbidden: User profile not found' });
     }
+
+    const role = profile.role as Role;
+    const permissions: string[] = profile.permissions ?? [];
+
+    // Cache for next requests
+    setCachedRBAC(user.id, role, permissions);
 
     req.user = {
       id: user.id,
       clinic_id: profile.clinic_id,
-      role: profile.role,
+      role,
+      permissions,
     };
 
     next();
   } catch (err) {
     logger.error(err, 'Auth Middleware Error');
-    res.status(500).json({ success: false, message: 'Internal Server Error' });
+    res.status(500).json({ success: false, error: 'Internal Server Error' });
   }
 };
 
+/**
+ * @deprecated Use allowRoles from rbac.middleware.ts instead.
+ * Kept for backward compatibility during migration.
+ */
 export const checkRole = (roles: string[]) => {
   return (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     if (!req.user || !roles.includes(req.user.role)) {
-      return res.status(403).json({ success: false, message: 'Forbidden: Insufficient permissions' });
+      return res.status(403).json({ success: false, error: 'Forbidden: Insufficient permissions' });
     }
     next();
   };

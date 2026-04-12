@@ -16,6 +16,7 @@ const NAV_GROUPS = [
     title: 'Resources',
     items: [
       { key: 'laboratory', icon: '🧪', badge: 'lab' },
+      { key: 'pharmacy', icon: '💊' },
     ]
   },
   {

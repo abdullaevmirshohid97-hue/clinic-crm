@@ -206,7 +206,7 @@ export default function JournalPage({ onNavigate }){
             isChild ? <span style={{ marginLeft: 25, opacity: 0.6 }}>↳ {e.patient_name}</span> : e.patient_name
           )}
         </td>
-        <td style={{ maxWidth: 280, overflow: 'hidden', textOverflow: 'ellipsis' }}>{e.item_name}</td>
+        <td style={{ maxWidth: 280, overflow: 'hidden', textOverflow: 'ellipsis' }}>{e.item_name || e.description || '—'}</td>
         <td style={{ textAlign:'right' }}>
           {docShare > 0 ? (
             <div style={{ display:'flex', alignItems:'center', justifyContent:'flex-end', gap:8 }}>
@@ -224,11 +224,11 @@ export default function JournalPage({ onNavigate }){
             style={{ cursor: e.payment_type === 'debt' ? 'pointer' : 'default' }}
             onClick={() => e.payment_type === 'debt' && setPayingDebt(e)}
           >
-            {e.payment_type === 'debt' ? '🔴 Qarz (To\'lash)' : e.payment_type.toUpperCase()}
+            {e.payment_type === 'debt' ? t('journal.status.debt_pay') : e.payment_type.toUpperCase()}
           </span>
         </td>
         <td style={{ textAlign:'right', color:'var(--accent-danger)' }}>{e.discount > 0 ? formatPrice(e.discount) : '—'}</td>
-        <td style={{ fontWeight: 600 }}>{e.status === 'refunded' ? '🟡 Qaytarilgan' : '🟢 OK'}</td>
+        <td style={{ fontWeight: 600 }}>{e.status === 'refunded' ? t('journal.status.refunded') : t('journal.status.ok')}</td>
         <td style={{ fontSize:12, opacity: 0.5 }}>{e.created_by || '—'}</td>
         <td>
           <div style={{ display:'flex', gap:6 }}>
@@ -248,15 +248,15 @@ export default function JournalPage({ onNavigate }){
       {/* HEADER */}
       <div className="page-header no-print">
         <div>
-          <h1 style={{ fontSize: 36, fontWeight: 900 }}>💰 Joriy Live Balans</h1>
-          <p style={{ opacity: 0.6 }}>Kassa operatsiyalari va moliyaviy nazorat</p>
+          <h1 style={{ fontSize: 36, fontWeight: 900 }}>{t('journal.live_balance')}</h1>
+          <p style={{ opacity: 0.6 }}>{t('journal.financial_control')}</p>
         </div>
         <div style={{ marginLeft:'auto', display:'flex', gap:10 }}>
-           <button className="btn btn-secondary glass-btn" style={{ background: 'var(--accent-danger-glow)', border: '1px solid var(--accent-danger)', color: 'var(--accent-danger)' }} onClick={() => handleZReport()}>🔒 Smenani Yopish (Z-Report)</button>
-           <button className="btn btn-secondary glass-btn" style={{ background: 'var(--accent-warning-glow)', border: '1px solid var(--accent-warning)' }} onClick={() => setShowExpenseModal(true)}>💸 + Xarajat</button>
-           <button className="btn btn-secondary glass-btn" onClick={() => setShowFilters(!showFilters)}>🔍 Filtrlar</button>
-           <button className="btn btn-secondary glass-btn" onClick={() => loadEntries(true)}>🔄 Yangilash</button>
-           <button className="btn btn-primary" style={{ padding: '12px 24px', fontSize: 16, borderRadius: 12 }} onClick={() => onNavigate?.('reception')}>➕ Yangi Qabul</button>
+           <button className="btn btn-secondary glass-btn" style={{ background: 'var(--accent-danger-glow)', border: '1px solid var(--accent-danger)', color: 'var(--accent-danger)' }} onClick={() => handleZReport()}>{t('journal.z_report')}</button>
+           <button className="btn btn-secondary glass-btn" style={{ background: 'var(--accent-warning-glow)', border: '1px solid var(--accent-warning)' }} onClick={() => setShowExpenseModal(true)}>{t('journal.add_expense')}</button>
+           <button className="btn btn-secondary glass-btn" onClick={() => setShowFilters(!showFilters)}>{t('journal.filters')}</button>
+           <button className="btn btn-secondary glass-btn" onClick={() => loadEntries(true)}>{t('journal.refresh')}</button>
+           <button className="btn btn-primary" style={{ padding: '12px 24px', fontSize: 16, borderRadius: 12 }} onClick={() => onNavigate?.('reception')}>{t('journal.new_reception')}</button>
         </div>
       </div>
 
@@ -265,8 +265,8 @@ export default function JournalPage({ onNavigate }){
         {[
           { label: t('journal.daily_revenue'), value: stats.daily.revenue, sub: `+ ${formatPrice(stats.daily.recovered)} qarzdan`, icon: '📈', color: 'var(--accent-success)' },
           { label: t('journal.daily_expense'), value: stats.daily.expense, icon: '📉', color: 'var(--accent-warning)' },
-          { label: 'Sof Tushum (Net)', value: (stats.daily.revenue + stats.daily.recovered) - stats.daily.expense, icon: '💎', color: 'var(--accent-primary)' },
-          { label: 'Joriy Qarz (Debts)', value: stats.daily.debt, icon: '⏳', color: 'var(--accent-danger)' }
+          { label: t('journal.net_revenue'), value: (stats.daily.revenue + stats.daily.recovered) - stats.daily.expense, icon: '💎', color: 'var(--accent-primary)' },
+          { label: t('journal.current_debts'), value: stats.daily.debt, icon: '⏳', color: 'var(--accent-danger)' }
         ].map((s, i) => (
           <div key={i} className="card glass-card" style={{ padding: 24, display:'flex', flexDirection:'column', gap:10, borderLeft: `6px solid ${s.color}` }}>
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
@@ -277,7 +277,7 @@ export default function JournalPage({ onNavigate }){
             {s.sub && <div style={{ fontSize: 11, opacity: 0.6 }}>{s.sub}</div>}
             {i === 0 && s.value > 5000000 && (
               <div style={{ fontSize: 11, background: 'var(--accent-danger-glow)', color: 'var(--accent-danger)', padding: '4px 8px', borderRadius: 6, fontWeight: 800 }}>
-                ⚠️ DIQQAT: Inkassatsiya qiling!
+                {t('journal.inkassatsiya')}
               </div>
             )}
           </div>
@@ -288,13 +288,13 @@ export default function JournalPage({ onNavigate }){
       <div className="card glass-card no-print" style={{ padding:'15px 20px' }}>
           <div style={{ display:'flex', gap:15, flexWrap:'wrap', alignItems:'center' }}>
             <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-              <label style={{ margin:0, fontSize:14, fontWeight:700 }}>Davr:</label>
+              <label style={{ margin:0, fontSize:14, fontWeight:700 }}>{t('journal.period')}</label>
               <input type="date" className="form-input" value={filters.from} onChange={e => setFilters(prev => ({ ...prev, from: e.target.value }))} />
               <span>—</span>
               <input type="date" className="form-input" value={filters.to} onChange={e => setFilters(prev => ({ ...prev, to: e.target.value }))} />
             </div>
             <div style={{ flex:1 }}>
-              <input type="text" className="form-input" style={{ padding: '10px 15px' }} placeholder="🔍 Qidiruv (Ism, shifokor, xizmat nomi)..." value={filters.search} onChange={e => setFilters(prev => ({ ...prev, search: e.target.value }))} />
+              <input type="text" className="form-input" style={{ padding: '10px 15px' }} placeholder={t('journal.search_placeholder')} value={filters.search} onChange={e => setFilters(prev => ({ ...prev, search: e.target.value }))} />
             </div>
           </div>
       </div>
@@ -305,20 +305,20 @@ export default function JournalPage({ onNavigate }){
           <table className="data-table" style={{ width:'100%', minWidth:1600, borderCollapse: 'separate', borderSpacing: 0 }}>
             <thead style={{ position:'sticky', top:0, zIndex:10, background:'var(--bg-card)' }}>
               <tr style={{ height: 60 }}>
-                <th>Sana</th>
-                <th>Vaqt</th>
-                <th>Shifokor</th>
-                <th>Kategoriya</th>
-                <th>Bemor Ismi</th>
-                <th>Xizmat Nomi</th>
-                <th style={{ textAlign:'right' }}>Ulush</th>
-                <th>Xona</th>
-                <th style={{ textAlign:'right' }}>Summa</th>
-                <th>To'lov</th>
-                <th style={{ textAlign:'right' }}>Chegirma</th>
-                <th>Status</th>
-                <th>Kassir</th>
-                <th style={{ textAlign:'center' }}>Amallar</th>
+                <th>{t('journal.table.date')}</th>
+                <th>{t('journal.table.time')}</th>
+                <th>{t('journal.table.doctor')}</th>
+                <th>{t('journal.table.category')}</th>
+                <th>{t('journal.table.patient')}</th>
+                <th>{t('journal.table.service')}</th>
+                <th style={{ textAlign:'right' }}>{t('journal.table.commission')}</th>
+                <th>{t('journal.table.room')}</th>
+                <th style={{ textAlign:'right' }}>{t('journal.table.amount')}</th>
+                <th>{t('journal.table.payment')}</th>
+                <th style={{ textAlign:'right' }}>{t('journal.table.discount')}</th>
+                <th>{t('journal.table.status')}</th>
+                <th>{t('journal.table.cashier')}</th>
+                <th style={{ textAlign:'center' }}>{t('journal.table.actions')}</th>
               </tr>
             </thead>
             <tbody>
@@ -338,46 +338,46 @@ export default function JournalPage({ onNavigate }){
         {/* STICKY FOOTER */}
         <div className="journal-sticky-footer" style={{ borderTop: '2px solid var(--accent-primary)', background: 'var(--bg-card)', zIndex: 20 }}>
             <div style={{ display:'flex', gap:30, padding: '15px 25px', fontWeight: 800, fontSize: 16 }}>
-               <div style={{ color:'var(--accent-primary)' }}>JAMI: {formatPrice(footerTotals.total)}</div>
-               <div style={{ color:'var(--accent-success)' }}>NAQD: {formatPrice(footerTotals.cash)}</div>
-               <div style={{ color:'var(--accent-info)' }}>KARTA: {formatPrice(footerTotals.card)}</div>
-               <div style={{ color:'var(--accent-danger)' }}>QARZ: {formatPrice(footerTotals.debt)}</div>
-               <div style={{ marginLeft:'auto', opacity:0.6 }}>{footerTotals.count} Operatsiya</div>
+               <div style={{ color:'var(--accent-primary)' }}>{t('journal.footer.total')} {formatPrice(footerTotals.total)}</div>
+               <div style={{ color:'var(--accent-success)' }}>{t('journal.footer.cash')} {formatPrice(footerTotals.cash)}</div>
+               <div style={{ color:'var(--accent-info)' }}>{t('journal.footer.card')} {formatPrice(footerTotals.card)}</div>
+               <div style={{ color:'var(--accent-danger)' }}>{t('journal.footer.debt')} {formatPrice(footerTotals.debt)}</div>
+               <div style={{ marginLeft:'auto', opacity:0.6 }}>{footerTotals.count} {t('journal.footer.count')}</div>
             </div>
         </div>
       </div>
 
       {/* EXPENSE MODAL */}
-      <Modal isOpen={showExpenseModal} onClose={() => setShowExpenseModal(false)} title="💸 Yangi Xarajat / Chiqim">
+      <Modal isOpen={showExpenseModal} onClose={() => setShowExpenseModal(false)} title={t('journal.expense_modal.title')}>
         <div className="form-grid p-4">
           <div className="form-group full-width">
-            <label>Xarajat Toifasi</label>
+            <label>{t('journal.expense_modal.category')}</label>
             <select className="form-input" value={expenseForm.category} onChange={e => setExpenseForm({...expenseForm, category: e.target.value})}>
-              <option value="Xo'jalik">Xo'jalik mollari</option>
-              <option value="Oylik">Xodimlar oyligi</option>
-              <option value="Ijara">Bino ijarasi</option>
-              <option value="Dori-darmon">Dori-darmon / Reaktiv</option>
-              <option value="Marketing">Reklama / Marketing</option>
-              <option value="Boshqa">Boshqa xarajatlar</option>
+              <option value="Xo'jalik">{t('journal.expense_modal.categories.household')}</option>
+              <option value="Oylik">{t('journal.expense_modal.categories.salary')}</option>
+              <option value="Ijara">{t('journal.expense_modal.categories.rent')}</option>
+              <option value="Dori-darmon">{t('journal.expense_modal.categories.medicine')}</option>
+              <option value="Marketing">{t('journal.expense_modal.categories.marketing')}</option>
+              <option value="Boshqa">{t('journal.expense_modal.categories.other')}</option>
             </select>
           </div>
           <div className="form-group full-width">
-            <label>Summa (UZS)</label>
+            <label>{t('journal.expense_modal.amount')}</label>
             <input type="number" className="form-input" value={expenseForm.amount} onChange={e => setExpenseForm({...expenseForm, amount: e.target.value})} placeholder="0" />
           </div>
           <div className="form-group full-width">
-            <label>Izoh / Sabab</label>
+            <label>{t('journal.expense_modal.description')}</label>
             <textarea className="form-input" rows="3" value={expenseForm.description} onChange={e => setExpenseForm({...expenseForm, description: e.target.value})} placeholder="Batafsil ma'lumot..."></textarea>
           </div>
           <div className="form-actions" style={{ marginTop:20, display:'flex', gap:10, justifyContent:'flex-end' }}>
-            <button className="btn btn-ghost" onClick={() => setShowExpenseModal(false)}>Bekor qilish</button>
-            <button className="btn btn-primary" onClick={handleAddExpense}>Saqlash</button>
+            <button className="btn btn-ghost" onClick={() => setShowExpenseModal(false)}>{t('common.cancel')}</button>
+            <button className="btn btn-primary" onClick={handleAddExpense}>{t('common.save')}</button>
           </div>
         </div>
       </Modal>
 
       {/* QUICK DEBT PAY MODAL */}
-      <Modal isOpen={!!payingDebt} onClose={() => setPayingDebt(null)} title="🔴 Qarzni yopish">
+      <Modal isOpen={!!payingDebt} onClose={() => setPayingDebt(null)} title={t('journal.pay_debt')}>
         {payingDebt && (
           <div className="form-grid p-4">
             <h2 style={{ fontSize: 24, fontWeight: 900, textAlign: 'center', color: 'var(--accent-danger)' }}>{formatPrice(payingDebt.amount)} so'm</h2>

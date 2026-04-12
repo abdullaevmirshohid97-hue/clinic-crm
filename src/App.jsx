@@ -20,7 +20,10 @@ import Laboratory from './pages/Laboratory';
 import Marketing from './pages/Marketing';
 import Archive from './pages/Archive';
 import StaffManagement from './pages/StaffManagement';
+import Pharmacy from './pages/Pharmacy';
 import AuthMock from './components/AuthMock';
+import Login from './components/Login';
+import { authStore } from './store/auth.store';
 
 const PAGE_MAP = {
   dashboard: Dashboard,
@@ -37,6 +40,7 @@ const PAGE_MAP = {
   marketing: Marketing,
   archive: Archive,
   staff: StaffManagement,
+  pharmacy: Pharmacy,
 };
 
 const FKEY_NAV_MAP = {
@@ -55,6 +59,8 @@ export default function App() {
     try { return localStorage.getItem('clinic_theme') || 'dark'; }
     catch { return 'dark'; }
   });
+  
+  const [authState, setAuthState] = useState(authStore.getState());
 
   const receptionRef = useRef(null);
 
@@ -62,6 +68,11 @@ export default function App() {
     document.documentElement.setAttribute('data-theme', theme);
     try { localStorage.setItem('clinic_theme', theme); } catch {}
   }, [theme]);
+
+  useEffect(() => {
+    const unsub = authStore.subscribe(setAuthState);
+    return () => unsub();
+  }, []);
 
   const handleNavigate = useCallback((page) => {
     const target = FKEY_NAV_MAP[page] || page;
@@ -117,11 +128,22 @@ export default function App() {
 
   useKeyboard({ onNavigate: handleNavigate, onAction: handleAction });
 
+  if (authState.isLoading) {
+    return (
+      <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-main)' }}>
+        <div className="spinner" style={{ width: 40, height: 40, borderTopColor: 'var(--primary)' }}></div>
+      </div>
+    );
+  }
+
+  if (!authState.isAuthenticated) {
+    return <Login />;
+  }
+
   const PageComponent = PAGE_MAP[activePage] || Reception;
 
   return (
     <Layout activePage={activePage} onNavigate={handleNavigate} theme={theme} onThemeChange={setTheme}>
-      <AuthMock />
       <PageComponent 
         ref={activePage === 'reception' ? receptionRef : undefined} 
         onNavigate={['dashboard', 'journal'].includes(activePage) ? handleNavigate : undefined} 
