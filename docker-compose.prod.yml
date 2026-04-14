@@ -1,0 +1,12 @@
+services:
+  # ─── Nginx (production HTTPS) ────────────────────────────────────────────
+  # Foydalanish: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+  nginx:
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./docker/nginx.prod.conf:/etc/nginx/nginx.conf:ro
+      - ./apps/clinic-app/dist:/usr/share/nginx/html:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+      - /var/www/certbot:/var/www/certbot:ro

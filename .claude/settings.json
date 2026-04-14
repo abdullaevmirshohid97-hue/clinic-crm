@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(tasklist)",
+      "Bash(docker context:*)",
+      "Bash(docker-compose down:*)",
+      "Bash(curl -s http://localhost/health)",
+      "Bash(curl -s http://localhost/)",
+      "Bash(node -e \"console.log\\(require\\('crypto'\\).randomBytes\\(64\\).toString\\('hex'\\)\\)\")",
+      "Bash(sshpass -V)",
+      "Bash(ssh -V)",
+      "Bash(python -c \"import paramiko; print\\('paramiko OK'\\)\")",
+      "Bash(python3 -c \"import paramiko; print\\('paramiko OK'\\)\")",
+      "Bash(pip install:*)",
+      "Bash(python -)"
+    ],
+    "additionalDirectories": [
+      "d:\\clinic crm"
+    ]
+  }
+}

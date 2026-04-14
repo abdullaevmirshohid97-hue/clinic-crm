@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(docker --version)",
+      "Bash(docker-compose --version)",
+      "Bash(npm run:*)",
+      "Bash(docker-compose up:*)",
+      "Bash(Start-Process \"C:\\\\Program Files\\\\Docker\\\\Docker\\\\Docker Desktop.exe\")",
+      "Bash(docker -H npipe:////./pipe/docker_engine ps)"
+    ]
+  }
+}
