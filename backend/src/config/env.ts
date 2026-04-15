@@ -14,6 +14,7 @@ const envSchema = z.object({
   TELEGRAM_BOT_TOKEN: z.string().optional(),
   TELEGRAM_CHAT_ID: z.string().optional(),
   SMS_API_KEY: z.string().optional(),
+  CORS_ORIGINS: z.string().optional().default(''),
 });
 
 const _env = envSchema.safeParse(process.env);

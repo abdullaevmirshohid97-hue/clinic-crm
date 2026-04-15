@@ -4,6 +4,7 @@ export type Role = 'super_admin' | 'admin' | 'doctor' | 'nurse' | 'reception' | 
 
 export interface UserPayload {
   id: string;
+  user_id?: string;
   clinic_id: string;
   role: Role;
   permissions?: string[];
@@ -16,4 +17,12 @@ export interface AuthenticatedRequest extends Request {
 export interface PaginationQuery {
   limit?: string;
   offset?: string;
+}
+
+declare global {
+  namespace Express {
+    interface Request {
+      user?: UserPayload;
+    }
+  }
 }

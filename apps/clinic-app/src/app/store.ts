@@ -49,21 +49,21 @@ export const authStore = {
     _state.isLoading = true;
     notify();
 
-    // Impersonation Interception (only in browser)
-    if (typeof window !== 'undefined') {
+    // Impersonation Interception (DEV mode only - security guard)
+    if (import.meta.env.DEV && typeof window !== 'undefined') {
       const searchParams = new URLSearchParams(window.location.search);
       const impId = searchParams.get('impersonate_clinic_id');
       if (impId) {
+        console.warn('[DEV ONLY] Impersonation mode active for clinic:', impId);
         _state = {
           user: { id: 'impersonator', email: 'superadmin@localhost' },
           session: { access_token: 'mock-token' },
-          clinicId: impId, // Seamlessly isolated to requested tenant
+          clinicId: impId,
           role: 'super_admin',
           permissions: ['dashboard', 'reception', 'cashier', 'analytics', 'settings'],
           isLoading: false,
           isAuthenticated: true,
         };
-        // Clean URL for security
         window.history.replaceState({}, document.title, window.location.pathname);
         notify();
         return;

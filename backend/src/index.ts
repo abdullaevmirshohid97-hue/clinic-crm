@@ -10,10 +10,27 @@ import { apiRateLimit, authRateLimit } from './middleware/rateLimit.middleware';
 
 const app = express();
 
+// Trust proxy for correct client IP behind nginx/load balancer
+app.set('trust proxy', 1);
+
 // Security Middlewares
 app.use(helmet());
-app.use(cors());
-app.use(express.json());
+
+// CORS configuration
+const corsOrigins = env.CORS_ORIGINS
+  ? env.CORS_ORIGINS.split(',').map(o => o.trim()).filter(Boolean)
+  : [];
+
+app.use(cors({
+  origin: env.NODE_ENV === 'production' && corsOrigins.length > 0
+    ? corsOrigins
+    : true, // Allow all in development or if CORS_ORIGINS not set
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+}));
+
+app.use(express.json({ limit: '10mb' }));
 
 // Global API Rate Limit
 app.use(apiRateLimit);

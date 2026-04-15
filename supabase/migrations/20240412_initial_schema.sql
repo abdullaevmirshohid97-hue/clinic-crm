@@ -1,3 +1,9 @@
+-- ============================================================================
+-- DEPRECATED: This migration is superseded by 20260405185031_initial_schema.sql
+-- DO NOT RUN THIS FILE - It uses UUID-based clinic_id which conflicts with
+-- the BIGINT-based tenant model in the newer schema.
+-- Kept for historical reference only.
+-- ============================================================================
 -- ENABLE RLS
 -- ALL TABLES MUST HAVE clinic_id
 

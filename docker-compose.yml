@@ -30,9 +30,9 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     restart: always
+    command: ["node", "dist/worker.js"]
     environment:
       - NODE_ENV=production
-      - PORT=3000
       - REDIS_URL=redis://redis:6379
     env_file:
       - ./backend/.env
