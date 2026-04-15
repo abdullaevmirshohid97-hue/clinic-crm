@@ -4,11 +4,15 @@ import { useToast } from '../../components/ui/Toast';
 import { authStore } from '../../app/store';
 import '../../styles/App.css';
 
+const isDemo = window.location.hostname === 'demo.clary.uz' || import.meta.env.VITE_DEMO_MODE === 'true';
+const DEMO_EMAIL = 'demo@clary.uz';
+const DEMO_PASSWORD = 'demo123456';
+
 export default function Login() {
   const { t } = useTranslation();
   const toast = useToast();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState(isDemo ? DEMO_EMAIL : '');
+  const [password, setPassword] = useState(isDemo ? DEMO_PASSWORD : '');
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -19,6 +23,18 @@ export default function Login() {
       toast.success(t('auth.loginSuccess') || 'Muvaffaqiyatli kirdingiz');
     } catch (err: any) {
       toast.error(err.message || 'Kirishda xatolik');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDemoLogin = async () => {
+    setLoading(true);
+    try {
+      await authStore.login(DEMO_EMAIL, DEMO_PASSWORD);
+      toast.success('Demo rejimga kirdingiz!');
+    } catch (err: any) {
+      toast.error(err.message || 'Demo kirishda xatolik');
     } finally {
       setLoading(false);
     }
@@ -123,6 +139,43 @@ export default function Login() {
             {loading ? 'Tekshirilmoqda...' : 'Tizimga kirish'}
           </button>
         </form>
+
+        {isDemo && (
+          <div style={{ marginTop: 24, textAlign: 'center' }}>
+            <div style={{ 
+              padding: '12px 16px', 
+              background: 'rgba(34, 197, 94, 0.1)', 
+              border: '1px solid rgba(34, 197, 94, 0.3)',
+              borderRadius: 12,
+              marginBottom: 16
+            }}>
+              <p style={{ color: '#22c55e', fontSize: 13, margin: 0, fontWeight: 500 }}>
+                🎯 Demo rejim - sinab ko'ring!
+              </p>
+              <p style={{ color: '#94a3b8', fontSize: 12, margin: '6px 0 0 0' }}>
+                Email: {DEMO_EMAIL} | Parol: {DEMO_PASSWORD}
+              </p>
+            </div>
+            <button 
+              onClick={handleDemoLogin}
+              style={{ 
+                width: '100%', 
+                padding: '12px 0', 
+                fontSize: 15,
+                fontWeight: 600,
+                background: 'rgba(34, 197, 94, 0.15)',
+                color: '#22c55e',
+                border: '1px solid rgba(34, 197, 94, 0.3)',
+                borderRadius: 12,
+                cursor: loading ? 'not-allowed' : 'pointer',
+                opacity: loading ? 0.7 : 1,
+              }} 
+              disabled={loading}
+            >
+              🚀 Demo bilan tezkor kirish
+            </button>
+          </div>
+        )}
 
       </div>
     </div>
