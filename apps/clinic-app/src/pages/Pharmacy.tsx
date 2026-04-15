@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useTranslation } from '../i18n/LanguageContext';
 import { useToast } from '../components/ui/Toast';
-import { supabase } from '../utils/supabase';
+import { supabase } from '../lib/supabase';
 import { db } from '../utils/db';
 import Modal from '../components/ui/Modal';
 import * as XLSX from 'xlsx';

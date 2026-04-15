@@ -7,9 +7,8 @@ import '../../styles/App.css';
 export default function Login() {
   const { t } = useTranslation();
   const toast = useToast();
-  // Pre-fill with mock credentials
-  const [email, setEmail] = useState('admin@clinic.com');
-  const [password, setPassword] = useState('admin');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -125,11 +124,6 @@ export default function Login() {
           </button>
         </form>
 
-        <div style={{ marginTop: 24, textAlign: 'center' }}>
-          <span style={{ fontSize: 13, color: '#64748b' }}>
-            Test uchun: admin@clinic.com / admin
-          </span>
-        </div>
       </div>
     </div>
   );

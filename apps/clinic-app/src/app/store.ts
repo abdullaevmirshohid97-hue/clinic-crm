@@ -1,4 +1,4 @@
-import { supabase } from '../utils/supabase';
+import { supabase } from '../lib/supabase';
 
 /**
  * Clary SaaS Auth Store.
@@ -55,7 +55,7 @@ export const authStore = {
       const impId = searchParams.get('impersonate_clinic_id');
       if (impId) {
         _state = {
-          user: { id: 'impersonator', email: 'superadmin@clary.uz' },
+          user: { id: 'impersonator', email: 'superadmin@localhost' },
           session: { access_token: 'mock-token' },
           clinicId: impId, // Seamlessly isolated to requested tenant
           role: 'super_admin',
@@ -119,20 +119,6 @@ export const authStore = {
   },
 
   async login(email: string, password: string) {
-    if (email === 'admin@clinic.com' && password === 'admin') {
-      _state = {
-        user: { id: 'mock-user-123', email },
-        session: { access_token: 'mock-token' },
-        clinicId: 'mock-clinic-id',
-        role: 'super_admin',
-        permissions: ['dashboard', 'reception', 'cashier', 'analytics', 'settings'],
-        isLoading: false,
-        isAuthenticated: true,
-      };
-      notify();
-      return _state.user;
-    }
-    
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) throw error;
     await this.initialize();

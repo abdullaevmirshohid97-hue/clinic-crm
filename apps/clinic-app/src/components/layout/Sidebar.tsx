@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from '../../i18n/LanguageContext';
 import { authStore } from '../../app/store';
-import { supabase } from '../../utils/supabase';
+import { supabase } from '../../lib/supabase';
 import { PAGE_PERMISSIONS } from '../../utils/permissions';
 
 const NAV_GROUPS = [

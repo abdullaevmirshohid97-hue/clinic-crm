@@ -3,7 +3,7 @@ import { useTranslation } from '../i18n/LanguageContext';
 import { useToast } from '../components/ui/Toast';
 import Modal from '../components/ui/Modal';
 import { db } from '../utils/db';
-import { supabase } from '../utils/supabase';
+import { supabase } from '../lib/supabase';
 
 const DIET_TYPES = {
   standard: 'inpatient.diets.standard',

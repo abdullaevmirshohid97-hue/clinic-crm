@@ -9,6 +9,7 @@ export default defineConfig({
   plugins: [react()],
   base: './',
   root: '.',
+  envPrefix: 'VITE_',
   build: {
     outDir: 'dist',
     emptyOutDir: true,
@@ -22,5 +23,6 @@ export default defineConfig({
     port: 5200,
     strictPort: true,
   },
-  envDir: '../../',
+  // Resolve env files from this app directory regardless of where `vite` is invoked.
+  envDir: __dirname,
 });

@@ -8,31 +8,17 @@ import { authStore } from '../app/store';
 export const db = {
   // Check if we have a valid session and clinic context
   getContext: () => {
-    const user = authStore.user;
-    if (!user || !user.clinicId) {
+    const clinicId = authStore.clinicId;
+    if (!clinicId) {
       console.warn('DB Action attempted without active clinic session');
       return null;
     }
-    return user.clinicId;
-  },
-
-  // Mock DB logic strictly for DEV offline testing
-  _getMockData(table) {
-    try { return JSON.parse(localStorage.getItem(`mock_db_${table}`) || '[]'); } catch { return []; }
-  },
-  _setMockData(table, data) {
-    localStorage.setItem(`mock_db_${table}`, JSON.stringify(data));
+    return clinicId;
   },
 
   getAll: async (table) => {
     try {
       const clinicId = db.getContext();
-
-      // Dev Mode Offline Fallback
-      if (clinicId === 'mock-clinic-id' && import.meta.env.DEV) {
-        const rows = db._getMockData(table).sort((a,b) => b.id - a.id);
-        return { success: true, data: rows };
-      }
 
       let query = supabase.from(table).select('*');
       
@@ -61,15 +47,6 @@ export const db = {
         created_at: new Date().toISOString()
       }));
 
-      // Dev Mode Offline Fallback
-      if (clinicId === 'mock-clinic-id' && import.meta.env.DEV) {
-        const currentData = db._getMockData(table);
-        const nextId = currentData.length ? Math.max(...currentData.map(c => c.id || 0)) + 1 : 1;
-        const mapped = itemsToInsert.map((item, idx) => ({ ...item, id: nextId + idx }));
-        db._setMockData(table, [...currentData, ...mapped]);
-        return { success: true, data: Array.isArray(data) ? mapped : mapped[0] };
-      }
-
       const { data: inserted, error } = await supabase
         .from(table)
         .insert(itemsToInsert)
@@ -86,14 +63,6 @@ export const db = {
   update: async (table, id, data) => {
     try {
       const clinicId = db.getContext();
-
-      // Dev Mode Offline Fallback
-      if (clinicId === 'mock-clinic-id' && import.meta.env.DEV) {
-        const currentData = db._getMockData(table);
-        const updatedData = currentData.map(item => String(item.id) === String(id) ? { ...item, ...data } : item);
-        db._setMockData(table, updatedData);
-        return { success: true };
-      }
 
       const { error } = await supabase
         .from(table)
@@ -112,14 +81,6 @@ export const db = {
   delete: async (table, id) => {
     try {
       const clinicId = db.getContext();
-
-      // Dev Mode Offline Fallback
-      if (clinicId === 'mock-clinic-id' && import.meta.env.DEV) {
-        const currentData = db._getMockData(table);
-        const filteredData = currentData.filter(item => String(item.id) !== String(id));
-        db._setMockData(table, filteredData);
-        return { success: true };
-      }
 
       const { error } = await supabase
         .from(table)
@@ -147,15 +108,6 @@ export const db = {
 
   async setSetting(key, value) {
     const clinicId = db.getContext();
-    if (clinicId === 'mock-clinic-id' && import.meta.env.DEV) {
-      const dbSettings = db._getMockData('settings');
-      const idx = dbSettings.findIndex(s => s.key === key);
-      if (idx > -1) dbSettings[idx].value = value;
-      else dbSettings.push({ id: Date.now() + Math.random(), clinic_id: clinicId, key, value });
-      db._setMockData('settings', dbSettings);
-      return { success: true };
-    }
-    
     try {
       const { error } = await supabase.from('settings').upsert({ clinic_id: clinicId, key, value }, { onConflict: 'clinic_id,key' });
       if (error) throw error;

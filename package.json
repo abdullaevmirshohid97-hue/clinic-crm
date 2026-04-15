@@ -10,7 +10,7 @@
     "dev:clinic": "npm run dev -w apps/clinic-app",
     "dev:admin": "npm run dev -w apps/admin-app",
     "dev:backend": "npm run dev -w apps/backend",
-    "dev": "concurrently \"npm:dev:backend\" \"npm:dev:admin\" \"npm:dev:clinic\"",
+    "dev": "npm run dev -w apps/clinic-app",
     "test": "npm run test -w apps/clinic-app",
     "build": "npm run build --workspaces --if-present",
     "install:all": "npm install"
