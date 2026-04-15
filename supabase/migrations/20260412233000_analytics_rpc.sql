@@ -1,6 +1,6 @@
 -- Performance Indexes
-CREATE INDEX IF NOT EXISTS idx_patients_clinic_created ON patients(clinic_id, created_at);
-CREATE INDEX IF NOT EXISTS idx_subscriptions_clinic_created ON subscriptions(clinic_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_patients_clinic_created ON patients(clinic_id, "createdAt");
+CREATE INDEX IF NOT EXISTS idx_subscriptions_clinic_created ON subscriptions(clinic_id, "createdAt");
 CREATE INDEX IF NOT EXISTS idx_subscriptions_status ON subscriptions(status);
 
 -- Global Analytics SECURE Invoker RPC
@@ -39,20 +39,20 @@ BEGIN
 
   SELECT COALESCE(json_agg(row_to_json(t)), '[]') INTO v_clinics_growth
   FROM (
-    SELECT DATE(created_at) as date, COUNT(*) as val
+    SELECT DATE("createdAt") as date, COUNT(*) as val
     FROM clinics
-    WHERE created_at >= (now() - interval '30 days')
-    GROUP BY DATE(created_at)
-    ORDER BY DATE(created_at)
+    WHERE "createdAt" >= (now() - interval '30 days')
+    GROUP BY DATE("createdAt")
+    ORDER BY DATE("createdAt")
   ) t;
 
   SELECT COALESCE(json_agg(row_to_json(t)), '[]') INTO v_revenue_growth
   FROM (
-    SELECT DATE(created_at) as date, SUM(amount) as val
+    SELECT DATE("createdAt") as date, SUM(amount) as val
     FROM subscriptions
-    WHERE status = 'active' AND current_period_end > now() AND created_at >= (now() - interval '30 days')
-    GROUP BY DATE(created_at)
-    ORDER BY DATE(created_at)
+    WHERE status = 'active' AND current_period_end > now() AND "createdAt" >= (now() - interval '30 days')
+    GROUP BY DATE("createdAt")
+    ORDER BY DATE("createdAt")
   ) t;
 
   RETURN json_build_object(
@@ -90,7 +90,7 @@ BEGIN
     RAISE EXCEPTION 'Invalid tenant: No clinic context found in session';
   END IF;
 
-  SELECT count(*), count(*) FILTER (WHERE DATE(created_at) = CURRENT_DATE)
+  SELECT count(*), count(*) FILTER (WHERE DATE("createdAt") = CURRENT_DATE)
   INTO v_total_patients, v_today_patients
   FROM patients WHERE clinic_id = v_clinic_uuid;
 
@@ -98,28 +98,28 @@ BEGIN
   FROM profiles WHERE clinic_id = v_clinic_uuid AND role = 'doctor';
 
   SELECT 
-    COALESCE(SUM(amount) FILTER (WHERE DATE(created_at) = CURRENT_DATE), 0),
-    COALESCE(SUM(amount) FILTER (WHERE date_trunc('month', created_at) = date_trunc('month', CURRENT_DATE)), 0)
+    COALESCE(SUM(amount) FILTER (WHERE DATE("createdAt") = CURRENT_DATE), 0),
+    COALESCE(SUM(amount) FILTER (WHERE date_trunc('month', "createdAt") = date_trunc('month', CURRENT_DATE)), 0)
   INTO v_revenue_today, v_revenue_month
   FROM subscriptions 
   WHERE clinic_id = v_clinic_uuid AND status = 'active' AND current_period_end > now();
 
   SELECT COALESCE(json_agg(row_to_json(t)), '[]') INTO v_patient_growth
   FROM (
-    SELECT DATE(created_at) as date, COUNT(*) as val
+    SELECT DATE("createdAt") as date, COUNT(*) as val
     FROM patients
-    WHERE clinic_id = v_clinic_uuid AND created_at >= (now() - interval '30 days')
-    GROUP BY DATE(created_at)
-    ORDER BY DATE(created_at)
+    WHERE clinic_id = v_clinic_uuid AND "createdAt" >= (now() - interval '30 days')
+    GROUP BY DATE("createdAt")
+    ORDER BY DATE("createdAt")
   ) t;
 
   SELECT COALESCE(json_agg(row_to_json(t)), '[]') INTO v_revenue_growth
   FROM (
-    SELECT DATE(created_at) as date, SUM(amount) as val
+    SELECT DATE("createdAt") as date, SUM(amount) as val
     FROM subscriptions
-    WHERE clinic_id = v_clinic_uuid AND status = 'active' AND current_period_end > now() AND created_at >= (now() - interval '30 days')
-    GROUP BY DATE(created_at)
-    ORDER BY DATE(created_at)
+    WHERE clinic_id = v_clinic_uuid AND status = 'active' AND current_period_end > now() AND "createdAt" >= (now() - interval '30 days')
+    GROUP BY DATE("createdAt")
+    ORDER BY DATE("createdAt")
   ) t;
 
   RETURN json_build_object(

@@ -1,4 +1,4 @@
-import { Request } from 'express';
+import { Request, Response, NextFunction, RequestHandler } from 'express';
 
 export type Role = 'super_admin' | 'admin' | 'doctor' | 'nurse' | 'reception' | 'warehouse_manager' | 'cashier';
 
@@ -8,10 +8,6 @@ export interface UserPayload {
   clinic_id: string;
   role: Role;
   permissions?: string[];
-}
-
-export interface AuthenticatedRequest extends Request {
-  user?: UserPayload;
 }
 
 export interface PaginationQuery {
@@ -26,3 +22,13 @@ declare global {
     }
   }
 }
+
+export interface AuthenticatedRequest extends Request {
+  user?: UserPayload;
+}
+
+export type AuthMiddleware = (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => Promise<void | Response> | void | Response;
