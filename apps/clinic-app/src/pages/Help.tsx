@@ -4,9 +4,7 @@ import { useTranslation } from '../i18n/LanguageContext';
 export default function Help() {
   const { t } = useTranslation();
 
-  const shortcuts = [
-    'f1', 'f2', 'f3', 'f4', 'f5', 'f6', 'f7', 'f8', 'f9', 'f10', 'f11', 'f12'
-  ];
+  const shortcuts = ['f1', 'f2', 'f3', 'f4', 'f5', 'f6', 'f7', 'f8', 'f9', 'f10', 'f11', 'f12'];
 
   return (
     <div className="page page-help">
@@ -21,7 +19,7 @@ export default function Help() {
           </div>
           <div className="card-body">
             <div className="shortcuts-grid">
-              {shortcuts.map(key => (
+              {shortcuts.map((key) => (
                 <div key={key} className="shortcut-item">
                   <kbd className="shortcut-key">{key.toUpperCase()}</kbd>
                   <span className="shortcut-desc">{t('keyboard.' + key)}</span>

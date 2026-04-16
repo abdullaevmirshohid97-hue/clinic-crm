@@ -8,23 +8,25 @@ import { supabase } from '../lib/supabase';
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1';
 
 async function getAuthHeaders() {
-  const { data: { session } } = await supabase.auth.getSession();
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
   const token = session?.access_token || localStorage.getItem('clinic_token') || '';
   return {
     'Content-Type': 'application/json',
-    'Authorization': `Bearer ${token}`,
+    Authorization: `Bearer ${token}`,
   };
 }
 
 async function handleResponse(res: Response, url: string, method: string) {
   const data = await res.json();
   const timestamp = new Date().toLocaleTimeString();
-  
+
   if (!res.ok || data.success === false) {
     console.error(`[${timestamp}] API ERROR: ${method} ${url}`, data);
     throw new Error(data.error || data.message || `HTTP ${res.status}`);
   }
-  
+
   console.log(`[${timestamp}] API SUCCESS: ${method} ${url}`, data);
   return data;
 }

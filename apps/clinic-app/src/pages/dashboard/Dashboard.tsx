@@ -7,18 +7,18 @@ export default function Dashboard({ onNavigate }: { onNavigate?: (page: string) 
   const { t } = useTranslation();
   const toast = useToast();
   const [loading, setLoading] = useState(true);
-  
+
   // States mapping to modular APIs
   const [stats, setStats] = useState({
-    revenue_today: 0, 
-    patients_today: 0, 
-    occupancy_rate: 0, 
-    online_staff: 0
+    revenue_today: 0,
+    patients_today: 0,
+    occupancy_rate: 0,
+    online_staff: 0,
   });
 
   useEffect(() => {
     loadAll();
-    const iv = setInterval(loadAll, 15000); 
+    const iv = setInterval(loadAll, 15000);
     return () => clearInterval(iv);
   }, []);
 
@@ -31,7 +31,7 @@ export default function Dashboard({ onNavigate }: { onNavigate?: (page: string) 
       }
     } catch (e) {
       console.error(e);
-      toast.error('Glavniy ma\'lumotlar yuklanmadi');
+      toast.error("Glavniy ma'lumotlar yuklanmadi");
     } finally {
       setLoading(false);
     }
@@ -44,7 +44,9 @@ export default function Dashboard({ onNavigate }: { onNavigate?: (page: string) 
   if (loading) {
     return (
       <div className="page dashboard-page">
-        <div className="page-loader"><div className="spinner"></div></div>
+        <div className="page-loader">
+          <div className="spinner"></div>
+        </div>
       </div>
     );
   }
@@ -94,11 +96,18 @@ export default function Dashboard({ onNavigate }: { onNavigate?: (page: string) 
         <div className="card glass-card">
           <div className="card-header">Tizim holati (API Integrated)</div>
           <div className="card-body">
-            <p><strong>Status:</strong> Barcha tizimlar to'liq API layer orqali ulandi (CTO Architect).</p>
+            <p>
+              <strong>Status:</strong> Barcha tizimlar to'liq API layer orqali ulandi (CTO
+              Architect).
+            </p>
             <p>Real-time analytics backend orqali {new Date().toLocaleTimeString()} da yuklandi.</p>
             <div style={{ marginTop: 20 }}>
-              <button className="btn btn-primary" onClick={() => onNavigate?.('reception')}>📝 Registratura</button>{' '}
-              <button className="btn btn-secondary" onClick={() => onNavigate?.('pharmacy')}>💊 Dorixona</button>
+              <button className="btn btn-primary" onClick={() => onNavigate?.('reception')}>
+                📝 Registratura
+              </button>{' '}
+              <button className="btn btn-secondary" onClick={() => onNavigate?.('pharmacy')}>
+                💊 Dorixona
+              </button>
             </div>
           </div>
         </div>

@@ -33,14 +33,18 @@ export default function SuperAdmin() {
 
         const permsMap: PermissionMap = {};
         for (const role of roles) {
-          const rolePerms = await window.electronAPI.auth?.getRolePermissions?.(role) || [];
-          permsMap[role] = (rolePerms as Array<{ feature_name: string; canAccess: boolean }>)
-            .reduce<Record<string, boolean>>((acc, p) => ({ ...acc, [p.feature_name]: p.canAccess }), {});
+          const rolePerms = (await window.electronAPI.auth?.getRolePermissions?.(role)) || [];
+          permsMap[role] = (
+            rolePerms as Array<{ feature_name: string; canAccess: boolean }>
+          ).reduce<Record<string, boolean>>(
+            (acc, p) => ({ ...acc, [p.feature_name]: p.canAccess }),
+            {}
+          );
         }
         setPermissions(permsMap);
       }
     } catch (e: unknown) {
-      toast.error('Ma\'lumotlarni yuklashda xatolik');
+      toast.error("Ma'lumotlarni yuklashda xatolik");
       console.error(e);
     } finally {
       setLoading(false);
@@ -53,16 +57,16 @@ export default function SuperAdmin() {
         await window.electronAPI.auth?.updatePermission?.({
           roleName: role,
           featureName: feature,
-          canAccess: !current
+          canAccess: !current,
         });
         setPermissions((prev) => ({
           ...prev,
-          [role]: { ...prev[role], [feature]: !current }
+          [role]: { ...prev[role], [feature]: !current },
         }));
         toast.success('Ruxsat yangilandi');
       }
     } catch (e: unknown) {
-      toast.error('O\'zgartirishda xatolik');
+      toast.error("O'zgartirishda xatolik");
       console.error(e);
     }
   }
@@ -85,26 +89,34 @@ export default function SuperAdmin() {
             <thead>
               <tr>
                 <th>Funksiya / Bo'lim</th>
-                {roles.map(r => (
-                  <th key={r} className="text-center">{r.toUpperCase()}</th>
+                {roles.map((r) => (
+                  <th key={r} className="text-center">
+                    {r.toUpperCase()}
+                  </th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {features.map(f => (
+              {features.map((f) => (
                 <tr key={f.name}>
                   <td>
                     <div className="font-bold">{f.label || f.name}</div>
                     <div className="text-xs text-muted">{f.category}</div>
                   </td>
-                  {roles.map(role => (
+                  {roles.map((role) => (
                     <td key={role} className="text-center">
-                      <input 
-                        type="checkbox" 
-                        checked={!!permissions[role]?.[f.name]} 
+                      <input
+                        type="checkbox"
+                        checked={!!permissions[role]?.[f.name]}
                         disabled={role === 'super_admin'}
-                        onChange={() => togglePermission(role, f.name, permissions[role]?.[f.name] ?? false)}
-                        style={{ width: 20, height: 20, cursor: role === 'super_admin' ? 'not-allowed' : 'pointer' }}
+                        onChange={() =>
+                          togglePermission(role, f.name, permissions[role]?.[f.name] ?? false)
+                        }
+                        style={{
+                          width: 20,
+                          height: 20,
+                          cursor: role === 'super_admin' ? 'not-allowed' : 'pointer',
+                        }}
                       />
                     </td>
                   ))}
@@ -117,7 +129,9 @@ export default function SuperAdmin() {
 
       <div className="grid grid-cols-2 gap-6 mt-6">
         <div className="card glass-card">
-          <div className="card-header"><h3>⚙️ Tizim holati</h3></div>
+          <div className="card-header">
+            <h3>⚙️ Tizim holati</h3>
+          </div>
           <div className="card-body">
             <div className="flex justify-between p-2 border-bottom">
               <span>Ma'lumotlar bazasi:</span>
@@ -135,10 +149,22 @@ export default function SuperAdmin() {
         </div>
 
         <div className="card glass-card border-danger">
-          <div className="card-header"><h3 className="text-danger">⚠️ Xavfli amallar</h3></div>
+          <div className="card-header">
+            <h3 className="text-danger">⚠️ Xavfli amallar</h3>
+          </div>
           <div className="card-body">
-            <button className="btn btn-outline-danger w-full mb-3" onClick={() => toast.error('Hozircha o\'chirilgan')}>Keshni tozalash</button>
-            <button className="btn btn-danger w-full" onClick={() => toast.error('Hozircha o\'chirilgan')}>Tizimni qayta yuklash</button>
+            <button
+              className="btn btn-outline-danger w-full mb-3"
+              onClick={() => toast.error("Hozircha o'chirilgan")}
+            >
+              Keshni tozalash
+            </button>
+            <button
+              className="btn btn-danger w-full"
+              onClick={() => toast.error("Hozircha o'chirilgan")}
+            >
+              Tizimni qayta yuklash
+            </button>
           </div>
         </div>
       </div>

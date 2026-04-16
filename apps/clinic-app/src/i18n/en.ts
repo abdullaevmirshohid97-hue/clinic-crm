@@ -13,7 +13,7 @@ export default {
     archive: 'Archive',
     staff: 'Staff',
     subscription: 'My Subscription',
-    settings: 'Settings'
+    settings: 'Settings',
   },
   common: {
     success: 'Saved successfully',
@@ -32,10 +32,10 @@ export default {
     add: 'Add',
     search: 'Search',
     confirm: 'Confirm',
-    unknown: 'Unknown'
+    unknown: 'Unknown',
   },
   inpatient: {
-    title: 'Inpatient'
+    title: 'Inpatient',
   },
   settings: {
     title: 'Settings',
@@ -43,14 +43,14 @@ export default {
     address: 'Address',
     phone: 'Phone Number',
     selectPrinter: 'Select Printer',
-    addService: 'Add Service'
+    addService: 'Add Service',
   },
   queue: {
     title: 'Queue Department',
     ticket: 'New Ticket',
     waiting: 'Waiting',
     inProgress: 'In Progress',
-    completed: 'Completed'
+    completed: 'Completed',
   },
   reception: {
     title: 'Patient Reception',
@@ -69,7 +69,7 @@ export default {
     address: 'Address',
     sources: {
       title: 'Source',
-      none: 'None'
+      none: 'None',
     },
     payment: 'Payment',
     cash: 'Cash',
@@ -80,13 +80,13 @@ export default {
     notes: 'Notes',
     noteEnter: 'Enter notes...',
     total: 'Total Amount',
-    shiftClosed: 'Shift Closed'
+    shiftClosed: 'Shift Closed',
   },
   pharmacy: {
-    title: 'Pharmacy'
+    title: 'Pharmacy',
   },
   auth: {
-    loginSuccess: 'Login successful'
+    loginSuccess: 'Login successful',
   },
   journal: {
     live_balance: 'Live Balance',
@@ -117,19 +117,19 @@ export default {
       discount: 'Discount',
       status: 'Status',
       cashier: 'Cashier',
-      actions: 'Actions'
+      actions: 'Actions',
     },
     footer: {
       total: 'Total:',
       cash: 'Cash:',
       card: 'Card:',
       debt: 'Debt:',
-      count: 'services'
+      count: 'services',
     },
     status: {
       debt_pay: 'Pay Debt',
       refunded: 'Refunded',
-      ok: 'Paid'
+      ok: 'Paid',
     },
     expense_modal: {
       title: 'New Expense',
@@ -142,10 +142,10 @@ export default {
         rent: 'Rent',
         medicine: 'Medicine',
         marketing: 'Marketing',
-        other: 'Other'
-      }
+        other: 'Other',
+      },
     },
-    pay_debt: 'Pay off Debt'
+    pay_debt: 'Pay off Debt',
   },
   analytics: {
     title: 'Analytics',
@@ -205,6 +205,6 @@ export default {
     debtMonitoring: 'Debt Monitoring',
     totalDebt: 'Total Debt',
     debtors: 'Debtors Count',
-    avgDebtAmount: 'Avg Debt Amount'
-  }
+    avgDebtAmount: 'Avg Debt Amount',
+  },
 };

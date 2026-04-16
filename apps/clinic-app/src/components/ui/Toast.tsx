@@ -13,9 +13,9 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
 
   const addToast = useCallback((message: string, type = 'info', duration = 3000) => {
     const id = Date.now() + Math.random();
-    setToasts(prev => [...prev, { id, message, type }]);
+    setToasts((prev) => [...prev, { id, message, type }]);
     setTimeout(() => {
-      setToasts(prev => prev.filter(t => t.id !== id));
+      setToasts((prev) => prev.filter((t) => t.id !== id));
     }, duration);
   }, []);
 
@@ -27,7 +27,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     <ToastContext.Provider value={{ success, error, info }}>
       {children}
       <div className="toast-container">
-        {toasts.map(t => (
+        {toasts.map((t) => (
           <div key={t.id} className={`toast toast-${t.type}`}>
             <span>{t.type === 'success' ? '✓' : t.type === 'error' ? '✕' : 'ℹ'}</span>
             <span>{t.message}</span>

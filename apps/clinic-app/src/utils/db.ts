@@ -29,13 +29,13 @@ export const db = {
       const clinicId = db.getContext();
 
       let query = supabase.from(table).select('*');
-      
+
       if (clinicId) {
         query = query.eq('clinic_id', clinicId);
       }
-      
+
       const { data, error } = await query.order('id', { ascending: false });
-      
+
       if (error) throw error;
       return { success: true, data: (data ?? []) as T[] };
     } catch (err: unknown) {
@@ -45,21 +45,21 @@ export const db = {
     }
   },
 
-  insert: async <T extends DbRow = DbRow>(table: string, data: DbRow | DbRow[]): Promise<DbResult<T | T[]>> => {
+  insert: async <T extends DbRow = DbRow>(
+    table: string,
+    data: DbRow | DbRow[]
+  ): Promise<DbResult<T | T[]>> => {
     try {
       const clinicId = db.getContext();
       const payload = Array.isArray(data) ? data : [data];
-      
+
       const itemsToInsert = payload.map((item) => ({
         ...item,
         clinic_id: item['clinic_id'] ?? clinicId,
-        created_at: new Date().toISOString()
+        created_at: new Date().toISOString(),
       }));
 
-      const { data: inserted, error } = await supabase
-        .from(table)
-        .insert(itemsToInsert)
-        .select();
+      const { data: inserted, error } = await supabase.from(table).insert(itemsToInsert).select();
 
       if (error) throw error;
       const result = (inserted ?? []) as T[];
@@ -94,11 +94,7 @@ export const db = {
     try {
       const clinicId = db.getContext();
 
-      const { error } = await supabase
-        .from(table)
-        .delete()
-        .eq('id', id)
-        .eq('clinic_id', clinicId);
+      const { error } = await supabase.from(table).delete().eq('id', id).eq('clinic_id', clinicId);
 
       if (error) throw error;
       return { success: true };
@@ -110,7 +106,7 @@ export const db = {
   },
 
   async query<T extends DbRow = DbRow>(sql: string, _params?: unknown[]): Promise<T[]> {
-    console.warn("Supabase does not support raw SQL from client. Ignored SQL:", sql);
+    console.warn('Supabase does not support raw SQL from client. Ignored SQL:', sql);
     return [] as T[];
   },
 
@@ -121,18 +117,29 @@ export const db = {
   async setSetting(key: string, value: string | number | boolean | null): Promise<DbSimpleResult> {
     const clinicId = db.getContext();
     try {
-      const { error } = await supabase.from('settings').upsert({ clinic_id: clinicId, key, value }, { onConflict: 'clinic_id,key' });
+      const { error } = await supabase
+        .from('settings')
+        .upsert({ clinic_id: clinicId, key, value }, { onConflict: 'clinic_id,key' });
       if (error) throw error;
       return { success: true };
-    } catch(e: unknown) {
+    } catch (e: unknown) {
       try {
-         const { data } = await supabase.from('settings').select('id').eq('clinic_id', clinicId).eq('key', key).single();
-         if (data) await supabase.from('settings').update({ value }).eq('id', (data as DbRow)['id']);
-         else await supabase.from('settings').insert({ clinic_id: clinicId, key, value });
-         return { success: true };
-      } catch(e2: unknown) {
-         const msg = e2 instanceof Error ? e2.message : String(e2);
-         return { success: false, error: msg };
+        const { data } = await supabase
+          .from('settings')
+          .select('id')
+          .eq('clinic_id', clinicId)
+          .eq('key', key)
+          .single();
+        if (data)
+          await supabase
+            .from('settings')
+            .update({ value })
+            .eq('id', (data as DbRow)['id']);
+        else await supabase.from('settings').insert({ clinic_id: clinicId, key, value });
+        return { success: true };
+      } catch (e2: unknown) {
+        const msg = e2 instanceof Error ? e2.message : String(e2);
+        return { success: false, error: msg };
       }
     }
   },

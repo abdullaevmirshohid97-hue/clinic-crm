@@ -5,9 +5,7 @@ import { ToastProvider } from '../components/ui/Toast';
 export function AppProviders({ children }: { children: ReactNode }) {
   return (
     <LanguageProvider>
-      <ToastProvider>
-        {children}
-      </ToastProvider>
+      <ToastProvider>{children}</ToastProvider>
     </LanguageProvider>
   );
 }

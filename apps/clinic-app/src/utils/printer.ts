@@ -1,5 +1,10 @@
 import { db } from './db';
-import type { QueueReceiptData, ServiceReceiptData, PayoutReceiptData, ReceiptData } from '../types/clinic';
+import type {
+  QueueReceiptData,
+  ServiceReceiptData,
+  PayoutReceiptData,
+  ReceiptData,
+} from '../types/clinic';
 
 interface ClinicSettings {
   receiptWidth?: string;
@@ -18,7 +23,9 @@ export async function getClinicSettings(): Promise<ClinicSettings> {
   try {
     const rows = await db.query<{ key: string; value: string }>('SELECT key, value FROM settings');
     const settings: ClinicSettings = {};
-    rows.forEach((r) => { settings[r.key] = r.value; });
+    rows.forEach((r) => {
+      settings[r.key] = r.value;
+    });
     return settings;
   } catch {
     return {};
@@ -80,9 +87,12 @@ function generateQueueReceipt(data: QueueReceiptData) {
 function generateServiceReceipt(data: ServiceReceiptData) {
   let servicesHTML = '';
   if (data.services && data.services.length > 0) {
-    servicesHTML = data.services.map((s) =>
-      `<div class="row"><span>${s.name}</span><span>${Number(s.price).toLocaleString()} so'm</span></div>`
-    ).join('');
+    servicesHTML = data.services
+      .map(
+        (s) =>
+          `<div class="row"><span>${s.name}</span><span>${Number(s.price).toLocaleString()} so'm</span></div>`
+      )
+      .join('');
   }
 
   return `
@@ -94,7 +104,7 @@ function generateServiceReceipt(data: ServiceReceiptData) {
   <div class="line"></div>
   ${data.discount ? `<div class="row"><span>Chegirma:</span><span>${data.discount}%</span></div>` : ''}
   <div class="row total"><span>JAMI:</span><span>${Number(data.total || 0).toLocaleString()} so'm</span></div>
-  <div class="row"><span>To'lov:</span><span>${data.paymentType === 'cash' ? 'Naqd' : data.paymentType === 'card' ? 'Karta' : data.paymentType === 'debt' ? 'Qarz' : 'O\'tkazma'}</span></div>
+  <div class="row"><span>To'lov:</span><span>${data.paymentType === 'cash' ? 'Naqd' : data.paymentType === 'card' ? 'Karta' : data.paymentType === 'debt' ? 'Qarz' : "O'tkazma"}</span></div>
 </div>
 `;
 }

@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useTranslation } from '../../i18n/LanguageContext';
 
 // Realistic mock login panel with token-like session (desktop app patch)
-export default function AuthMock(){
+export default function AuthMock() {
   const { t } = useTranslation();
   const [current, setCurrent] = useState(0);
   const [username, setUsername] = useState('');
@@ -14,7 +14,9 @@ export default function AuthMock(){
       const id = Number(localStorage.getItem('clinic_user_id') || 0);
       setCurrent(id);
       window?.electronAPI?.auth?.getCurrentUser?.().then((id2) => setCurrent(id2 ?? id));
-    } catch { /* storage or electron unavailable */ }
+    } catch {
+      /* storage or electron unavailable */
+    }
   }, []);
 
   async function login() {
@@ -25,14 +27,22 @@ export default function AuthMock(){
     const token = btoa(uname + ':' + password);
     localStorage.setItem('clinic_token', token);
     localStorage.setItem('clinic_user_id', String(id));
-    try { await window?.electronAPI?.auth?.setCurrentUser?.(id); } catch { /* electron unavailable */ }
+    try {
+      await window?.electronAPI?.auth?.setCurrentUser?.(id);
+    } catch {
+      /* electron unavailable */
+    }
     setCurrent(id);
   }
 
   function logout() {
     localStorage.removeItem('clinic_token');
     localStorage.removeItem('clinic_user_id');
-    try { window?.electronAPI?.auth?.setCurrentUser?.(0); } catch { /* electron unavailable */ }
+    try {
+      window?.electronAPI?.auth?.setCurrentUser?.(0);
+    } catch {
+      /* electron unavailable */
+    }
     setCurrent(0);
   }
 

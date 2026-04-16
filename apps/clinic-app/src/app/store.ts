@@ -30,13 +30,19 @@ let _state: AuthState = {
 const _listeners = new Set<(state: AuthState) => void>();
 
 function notify() {
-  _listeners.forEach(fn => fn({ ..._state }));
+  _listeners.forEach((fn) => fn({ ..._state }));
 }
 
 export const authStore = {
-  get user() { return _state.user; },
-  get clinicId() { return _state.clinicId; },
-  get role() { return _state.role; },
+  get user() {
+    return _state.user;
+  },
+  get clinicId() {
+    return _state.clinicId;
+  },
+  get role() {
+    return _state.role;
+  },
 
   getState() {
     return { ..._state };
@@ -73,8 +79,10 @@ export const authStore = {
       }
     }
 
-    const { data: { session } } = await supabase.auth.getSession();
-    
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
     if (session?.user) {
       const { data: profile } = await supabase
         .from('profiles')
@@ -96,7 +104,7 @@ export const authStore = {
           session: session,
           clinicId: typedProfile.clinic_id,
           role: roleName || 'guest',
-          permissions: (perms as AppPermission[] | null)?.map(p => p.feature_name) || [],
+          permissions: (perms as AppPermission[] | null)?.map((p) => p.feature_name) || [],
           isLoading: false,
           isAuthenticated: true,
         };
@@ -130,7 +138,15 @@ export const authStore = {
   async logout() {
     if (!isSupabaseConfigured) return;
     await supabase.auth.signOut();
-    _state = { user: null, session: null, clinicId: null, role: null, permissions: [], isLoading: false, isAuthenticated: false };
+    _state = {
+      user: null,
+      session: null,
+      clinicId: null,
+      role: null,
+      permissions: [],
+      isLoading: false,
+      isAuthenticated: false,
+    };
     notify();
   },
 

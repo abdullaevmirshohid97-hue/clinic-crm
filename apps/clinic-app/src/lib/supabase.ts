@@ -12,14 +12,12 @@ const isMissingConfig =
 if (isMissingConfig) {
   console.error(
     '\n[CLARY] Supabase sozlanmagan!\n' +
-    '  1. .env.example faylini ko\'chirib .env yarating\n' +
-    '  2. VITE_SUPABASE_URL va VITE_SUPABASE_ANON_KEY ni to\'ldiring\n' +
-    '  3. Ilovani qayta ishga tushiring\n'
+      "  1. .env.example faylini ko'chirib .env yarating\n" +
+      "  2. VITE_SUPABASE_URL va VITE_SUPABASE_ANON_KEY ni to'ldiring\n" +
+      '  3. Ilovani qayta ishga tushiring\n'
   );
 }
 
-export const supabase = isMissingConfig
-  ? null as any
-  : createClient(url, key);
+export const supabase = isMissingConfig ? (null as any) : createClient(url, key);
 
 export const isSupabaseConfigured = !isMissingConfig;

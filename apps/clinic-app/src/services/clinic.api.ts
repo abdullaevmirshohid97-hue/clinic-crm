@@ -16,8 +16,8 @@ export const analyticsApi = {
             revenue_today: 4500000,
             patients_today: 42,
             occupancy_rate: 85,
-            online_staff: 12
-          }
+            online_staff: 12,
+          },
         };
       }
       throw e;

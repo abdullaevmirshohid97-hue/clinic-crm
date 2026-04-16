@@ -45,18 +45,22 @@ interface PageSharedProps {
   onNavigate?: (page: string) => void;
 }
 
-export function AppRoutes({ activePage, receptionRef, handleNavigate }: {
+export function AppRoutes({
+  activePage,
+  receptionRef,
+  handleNavigate,
+}: {
   activePage: string;
   receptionRef: React.RefObject<ReceptionHandle | null>;
   handleNavigate: (page: string) => void;
 }) {
   const key: PageKey = activePage in PAGE_MAP ? (activePage as PageKey) : 'dashboard';
   const PageComponent = PAGE_MAP[key] as React.ComponentType<Partial<PageSharedProps>>;
-  
+
   return (
-    <PageComponent 
-      ref={activePage === 'reception' ? receptionRef : undefined} 
-      onNavigate={['dashboard', 'journal'].includes(activePage) ? handleNavigate : undefined} 
+    <PageComponent
+      ref={activePage === 'reception' ? receptionRef : undefined}
+      onNavigate={['dashboard', 'journal'].includes(activePage) ? handleNavigate : undefined}
     />
   );
 }

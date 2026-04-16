@@ -8,15 +8,32 @@ interface ElectronAuthAPI {
   getCurrentUser?: () => Promise<number | null>;
   setCurrentUser?: (id: number) => Promise<void>;
   getFeatures?: () => Promise<Array<{ id: number; name: string; label?: string }>>;
-  getRolePermissions?: (role: string) => Promise<Array<{ feature_name: string; canAccess: boolean }>>;
-  updatePermission?: (payload: { roleName: string; featureName: string; canAccess: boolean }) => Promise<{ success: boolean }>;
+  getRolePermissions?: (
+    role: string
+  ) => Promise<Array<{ feature_name: string; canAccess: boolean }>>;
+  updatePermission?: (payload: {
+    roleName: string;
+    featureName: string;
+    canAccess: boolean;
+  }) => Promise<{ success: boolean }>;
 }
 
 interface ElectronJournalAPI {
-  addExpense?: (category: string, amount: string | number, description: string) => Promise<{ success: boolean }>;
-  payDebt?: (type: string, id: number, paymentType: string, amount: number) => Promise<{ success: boolean }>;
+  addExpense?: (
+    category: string,
+    amount: string | number,
+    description: string
+  ) => Promise<{ success: boolean }>;
+  payDebt?: (
+    type: string,
+    id: number,
+    paymentType: string,
+    amount: number
+  ) => Promise<{ success: boolean }>;
   closeShift?: (date?: string) => Promise<{ success: boolean }>;
-  getComprehensive?: (filters: Record<string, unknown>) => Promise<{ success: boolean; data?: unknown[] }>;
+  getComprehensive?: (
+    filters: Record<string, unknown>
+  ) => Promise<{ success: boolean; data?: unknown[] }>;
   getFinancialStats?: () => Promise<{ success: boolean; data?: unknown }>;
 }
 
@@ -26,7 +43,10 @@ interface ElectronPrintAPI {
 }
 
 interface ElectronQrAPI {
-  upload?: (base64: string, filename: string) => Promise<{ success: boolean; path?: string; error?: string }>;
+  upload?: (
+    base64: string,
+    filename: string
+  ) => Promise<{ success: boolean; path?: string; error?: string }>;
 }
 
 interface ElectronBackupAPI {

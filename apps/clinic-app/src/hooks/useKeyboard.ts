@@ -29,22 +29,25 @@ interface KeyboardOptions {
 }
 
 export function useKeyboard({ onNavigate, onAction }: KeyboardOptions) {
-  const handleKeyDown = useCallback((e: KeyboardEvent) => {
-    const action = KEY_MAP[e.key];
-    if (!action) return;
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent) => {
+      const action = KEY_MAP[e.key];
+      if (!action) return;
 
-    e.preventDefault();
-    e.stopPropagation();
+      e.preventDefault();
+      e.stopPropagation();
 
-    if (NAVIGATION_KEYS[e.key] && onNavigate) {
-      onNavigate(NAVIGATION_KEYS[e.key]);
-      return;
-    }
+      if (NAVIGATION_KEYS[e.key] && onNavigate) {
+        onNavigate(NAVIGATION_KEYS[e.key]);
+        return;
+      }
 
-    if (onAction) {
-      onAction(action, e.key);
-    }
-  }, [onNavigate, onAction]);
+      if (onAction) {
+        onAction(action, e.key);
+      }
+    },
+    [onNavigate, onAction]
+  );
 
   useEffect(() => {
     window.addEventListener('keydown', handleKeyDown);

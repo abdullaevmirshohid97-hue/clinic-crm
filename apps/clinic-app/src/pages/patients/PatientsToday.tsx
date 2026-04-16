@@ -20,24 +20,27 @@ export default function PatientsToday() {
         db.getAllRows('appointments'),
         db.getAllRows('patients'),
         db.getAllRows('doctors'),
-        db.getAllRows('services')
+        db.getAllRows('services'),
       ]);
 
-      const rows = apps.filter((a: any) => {
-        return a.createdAt && a.createdAt.startsWith(today);
-      }).map((a: any) => {
-        const p = pt.find((x: any) => x.id === a.patientId);
-        const d = docs.find((x: any) => x.id === a.doctorId);
-        const s = svcs.find((x: any) => x.id === a.serviceId);
-        return {
-          ...a,
-          patientName: p ? p.fullName : 'Noma\'lum',
-          patientPhone: p ? p.phone : '',
-          doctorName: d ? d.fullName : '—',
-          serviceName: s ? s.name : '—'
-        };
-      }).sort((a: any, b: any) => b.id - a.id);
-      
+      const rows = apps
+        .filter((a: any) => {
+          return a.createdAt && a.createdAt.startsWith(today);
+        })
+        .map((a: any) => {
+          const p = pt.find((x: any) => x.id === a.patientId);
+          const d = docs.find((x: any) => x.id === a.doctorId);
+          const s = svcs.find((x: any) => x.id === a.serviceId);
+          return {
+            ...a,
+            patientName: p ? p.fullName : "Noma'lum",
+            patientPhone: p ? p.phone : '',
+            doctorName: d ? d.fullName : '—',
+            serviceName: s ? s.name : '—',
+          };
+        })
+        .sort((a: any, b: any) => b.id - a.id);
+
       setPatients(rows);
     } catch (err: any) {
       console.error('Load patients error:', err);
@@ -54,9 +57,13 @@ export default function PatientsToday() {
   return (
     <div className="page patients-today-page">
       <div className="page-header">
-        <h1>👥 {t('dashboard.patientsToday')} — {new Date().toLocaleDateString('uz-UZ')}</h1>
+        <h1>
+          👥 {t('dashboard.patientsToday')} — {new Date().toLocaleDateString('uz-UZ')}
+        </h1>
         <div className="page-header-actions">
-           <button className="btn btn-secondary" onClick={loadPatients}>🔄 {t('common.refresh')}</button>
+          <button className="btn btn-secondary" onClick={loadPatients}>
+            🔄 {t('common.refresh')}
+          </button>
         </div>
       </div>
 
@@ -80,7 +87,10 @@ export default function PatientsToday() {
                 <tbody>
                   {patients.length === 0 ? (
                     <tr>
-                      <td colSpan={8} style={{ textAlign: 'center', padding: '30px', color: 'var(--text-muted)' }}>
+                      <td
+                        colSpan={8}
+                        style={{ textAlign: 'center', padding: '30px', color: 'var(--text-muted)' }}
+                      >
                         {t('common.noData')}
                       </td>
                     </tr>
@@ -95,12 +105,21 @@ export default function PatientsToday() {
                         <td>{formatPrice(p.amount * (p.quantity || 1))}</td>
                         <td>
                           <span className={`badge badge-info`}>
-                            {p.paymentType === 'cash' ? '💵 Naqd' : 
-                             p.paymentType === 'card' ? '💳 Karta' : 
-                             p.paymentType === 'transfer' ? '🔄 Click' : '📝 Qarz'}
+                            {p.paymentType === 'cash'
+                              ? '💵 Naqd'
+                              : p.paymentType === 'card'
+                                ? '💳 Karta'
+                                : p.paymentType === 'transfer'
+                                  ? '🔄 Click'
+                                  : '📝 Qarz'}
                           </span>
                         </td>
-                        <td>{new Date(p.createdAt).toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit' })}</td>
+                        <td>
+                          {new Date(p.createdAt).toLocaleTimeString('uz-UZ', {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
+                        </td>
                       </tr>
                     ))
                   )}

@@ -13,7 +13,7 @@ export default {
     archive: 'Архив',
     staff: 'Сотрудники',
     subscription: 'Моя Подписка',
-    settings: 'Настройки'
+    settings: 'Настройки',
   },
   common: {
     success: 'Успешно сохранено',
@@ -32,10 +32,10 @@ export default {
     add: 'Добавить',
     search: 'Поиск',
     confirm: 'Подтвердить',
-    unknown: 'Неизвестно'
+    unknown: 'Неизвестно',
   },
   inpatient: {
-    title: 'Стационар'
+    title: 'Стационар',
   },
   settings: {
     title: 'Настройки',
@@ -43,14 +43,14 @@ export default {
     address: 'Адрес',
     phone: 'Номер телефона',
     selectPrinter: 'Выбор принтера',
-    addService: 'Добавить услугу'
+    addService: 'Добавить услугу',
   },
   queue: {
     title: 'Отдел Очереди',
     ticket: 'Новый талон',
     waiting: 'Ожидают',
     inProgress: 'На приеме',
-    completed: 'Завершены'
+    completed: 'Завершены',
   },
   reception: {
     title: 'Прием Пациента',
@@ -69,7 +69,7 @@ export default {
     address: 'Адрес',
     sources: {
       title: 'Источник',
-      none: 'Не указано'
+      none: 'Не указано',
     },
     payment: 'Оплата',
     cash: 'Наличные',
@@ -80,13 +80,13 @@ export default {
     notes: 'Заметки',
     noteEnter: 'Введите заметку...',
     total: 'Итого к оплате',
-    shiftClosed: 'Смена закрыта'
+    shiftClosed: 'Смена закрыта',
   },
   pharmacy: {
-    title: 'Аптека'
+    title: 'Аптека',
   },
   auth: {
-    loginSuccess: 'Успешный вход'
+    loginSuccess: 'Успешный вход',
   },
   journal: {
     live_balance: 'Живой баланс',
@@ -117,19 +117,19 @@ export default {
       discount: 'Скидка',
       status: 'Статус',
       cashier: 'Кассир',
-      actions: 'Действия'
+      actions: 'Действия',
     },
     footer: {
       total: 'Итого:',
       cash: 'Наличные:',
       card: 'Карта:',
       debt: 'Долг:',
-      count: 'услуг'
+      count: 'услуг',
     },
     status: {
       debt_pay: 'Оплатить',
       refunded: 'Возврат',
-      ok: 'Оплачено'
+      ok: 'Оплачено',
     },
     expense_modal: {
       title: 'Новый расход',
@@ -142,10 +142,10 @@ export default {
         rent: 'Аренда',
         medicine: 'Медикаменты',
         marketing: 'Маркетинг',
-        other: 'Другое'
-      }
+        other: 'Другое',
+      },
     },
-    pay_debt: 'Оплатить долг'
+    pay_debt: 'Оплатить долг',
   },
   analytics: {
     title: 'Аналитика',
@@ -205,6 +205,6 @@ export default {
     debtMonitoring: 'Мониторинг долгов',
     totalDebt: 'Общий долг',
     debtors: 'Кол-во должников',
-    avgDebtAmount: 'Средний долг'
-  }
+    avgDebtAmount: 'Средний долг',
+  },
 };
