@@ -11,7 +11,7 @@ export default function Subscription() {
     try {
       const saved = localStorage.getItem('support_chat');
       if (saved) return JSON.parse(saved);
-    } catch(e) {}
+    } catch(e) { /* storage unavailable */ }
     return [
       { id: 1, text: "Assalomu alaykum! Tizim modullarini kengaytirish yuzasidan yordam kerakmi yoki texnik muammomi?", sender: 'support', time: '10:00' }
     ];

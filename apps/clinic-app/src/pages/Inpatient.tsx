@@ -117,7 +117,7 @@ export default function Inpatient() {
         })
         .sort((a, b) => ((a.scheduledTime as string) || '').localeCompare((b.scheduledTime as string) || ''));
       setInpatientTreatments(trms as InpatientTreatmentRecord[]);
-    } catch (_err: unknown) {}
+    } catch (_err: unknown) { /* ignore load errors */ }
     finally { setTreatmentsLoading(false); }
   }
 
@@ -171,7 +171,7 @@ export default function Inpatient() {
         .filter(v => v.roomPatientId === rpId)
         .sort((a,b) => new Date(b.createdAt ?? '').getTime() - new Date(a.createdAt ?? '').getTime());
       setVitalsHistory(res);
-    } catch (_e: unknown) {}
+    } catch (_e: unknown) { /* ignore load errors */ }
   }
 
   async function saveVitals() {

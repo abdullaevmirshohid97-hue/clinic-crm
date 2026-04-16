@@ -34,7 +34,7 @@ export default function Pharmacy() {
   function toggleFav(id: number | string) {
     setFavorites((prev: any[]) => {
       const next = prev.includes(id) ? prev.filter(x => x !== id) : prev.length >= 10 ? (toast.error('Maksimal 10 ta tezkor tugma!'), prev) : [...prev, id];
-      try { localStorage.setItem('ph_favs', JSON.stringify(next)); } catch {}
+      try { localStorage.setItem('ph_favs', JSON.stringify(next)); } catch { /* storage unavailable */ }
       return next;
     });
   }
@@ -408,7 +408,7 @@ export default function Pharmacy() {
         const sheet = workbook.Sheets[workbook.SheetNames[0]];
         const json = XLSX.utils.sheet_to_json(sheet, { header: 1 });
         
-        let rows = [];
+        const rows = [];
         let currentCategory = '';
         let headerIdx = -1;
         
@@ -434,7 +434,7 @@ export default function Pharmacy() {
           const obj: any = {};
           headers.forEach((h, idx) => { if(h) obj[h] = row[idx]; });
           
-          let name = String(obj['препарат'] || obj['nomi'] || obj['name'] || '').trim();
+          const name = String(obj['препарат'] || obj['nomi'] || obj['name'] || '').trim();
           if (!name || name === 'Итого') continue;
 
           let exp = obj['срок годности'] || obj['muddat'] || obj['expiry'] || '';

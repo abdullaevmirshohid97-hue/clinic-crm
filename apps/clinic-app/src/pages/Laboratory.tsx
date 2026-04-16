@@ -120,7 +120,7 @@ export default function Laboratory() {
 
   function openEditTemplate(tpl: LabTestTemplate) {
     let parsedFields: TemplateFieldDraft[] = [];
-    try { parsedFields = JSON.parse(tpl.fieldsJson || '[]') as TemplateFieldDraft[]; } catch(_e){}
+    try { parsedFields = JSON.parse(tpl.fieldsJson || '[]') as TemplateFieldDraft[]; } catch(_e){ /* invalid JSON */ }
     setTemplateForm({
       id: tpl.id, testName: tpl.testName, category: tpl.category || '', price: tpl.price || 0, fields: parsedFields
     });
@@ -165,7 +165,7 @@ export default function Laboratory() {
         resultObj.fields.forEach((f) => { existingData[f.name] = f.value ?? ''; });
       }
       if (resultObj.legacy) existingData['__legacy'] = resultObj.legacy;
-    } catch(_e){}
+    } catch(_e){ /* invalid JSON */ }
 
     if (tst.resultValue && Object.keys(existingData).length === 0) {
       existingData['__legacy'] = tst.resultValue;
@@ -177,7 +177,7 @@ export default function Laboratory() {
       if (hist && hist.length > 0) {
         historicalData = (JSON.parse(String(hist[0].resultJson) || '{}') as { fields?: LabTestTemplateField[] })?.fields || [];
       }
-    } catch(_e) {}
+    } catch(_e) { /* invalid JSON */ }
 
     setResultData({ ...existingData, __historicalFields: historicalData });
     setShowResultModal(true);
@@ -188,7 +188,7 @@ export default function Laboratory() {
     try {
       const tpl = templates.find(x => x.testName === activeTest.testName);
       let tplFields: TemplateFieldDraft[] = [];
-      if(tpl) try { tplFields = JSON.parse(tpl.fieldsJson || '[]') as TemplateFieldDraft[]; } catch(_e){}
+      if(tpl) try { tplFields = JSON.parse(tpl.fieldsJson || '[]') as TemplateFieldDraft[]; } catch(_e){ /* invalid JSON */ }
 
       const processedResults: Array<{ name: string; value: string; flag: string; unit: string; min: string; max: string }> = [];
 
@@ -262,7 +262,7 @@ export default function Laboratory() {
           userName: 'Laborant',
           reason: 'LIMS Natija kiritildi / Tahrirlandi'
         });
-      } catch(e){}
+      } catch(e){ /* audit log error ignored */ }
 
       toast.success("Natija saqlandi!");
       setShowResultModal(false);
@@ -272,7 +272,7 @@ export default function Laboratory() {
 
   function printPDF(tst: LabTest) {
     let resObj: { fields: PrintResultField[]; legacy: string } = { fields: [], legacy: '' };
-    try { resObj = JSON.parse(tst.resultJson || '{"fields":[]}'); } catch(e){}
+    try { resObj = JSON.parse(tst.resultJson || '{"fields":[]}'); } catch(e){ /* invalid JSON */ }
 
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
@@ -375,7 +375,7 @@ export default function Laboratory() {
 
   const activeTestTpl = templates.find(x => x.testName === activeTest?.testName);
   let tplFields: TemplateFieldDraft[] = [];
-  if (activeTestTpl) { try { tplFields = JSON.parse(activeTestTpl.fieldsJson || '[]') as TemplateFieldDraft[]; } catch(_e){} }
+  if (activeTestTpl) { try { tplFields = JSON.parse(activeTestTpl.fieldsJson || '[]') as TemplateFieldDraft[]; } catch(_e){ /* invalid JSON */ } }
 
   return (
     <div className="page page-laboratory">
@@ -498,7 +498,7 @@ export default function Laboratory() {
                      <tbody>
                        {templates.map(tpl => {
                            let f = [];
-                           try { f = JSON.parse(tpl.fieldsJson||'[]') } catch(e){}
+                           try { f = JSON.parse(tpl.fieldsJson||'[]') } catch(e){ /* invalid JSON */ }
                            return (
                              <tr key={tpl.id}>
                                <td><div style={{fontWeight:600}}>{tpl.testName}</div></td>

@@ -49,14 +49,14 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    try { localStorage.setItem('clinic_lang', lang) } catch {}
+    try { localStorage.setItem('clinic_lang', lang) } catch { /* storage unavailable */ }
   }, [lang])
 
   useEffect(() => {
     try {
       const saved = localStorage.getItem('clinic_lang')
       if (saved && (saved === 'uz' || saved === 'en' || saved === 'ru')) setLangState(saved as Lang)
-    } catch {}
+    } catch { /* storage unavailable */ }
   }, [])
 
   const value = useMemo(() => ({ lang, translate, setLang }), [lang, translate, setLang])

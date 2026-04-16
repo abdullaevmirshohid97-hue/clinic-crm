@@ -71,7 +71,7 @@ const Reception = forwardRef<ReceptionHandle, Record<string, never>>(function Re
           if (parsed.selectedPatientId) setSelectedPatientId(parsed.selectedPatientId);
           if (parsed.patientStatsionarInfo) setPatientStatsionarInfo(parsed.patientStatsionarInfo);
           if (parsed.notes) setNotes(parsed.notes);
-        } catch(e) {}
+        } catch(e) { /* ignore parse errors */ }
       }
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : String(err));

@@ -32,7 +32,7 @@ export default function App() {
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
-    try { localStorage.setItem('clinic_theme', theme); } catch {}
+    try { localStorage.setItem('clinic_theme', theme); } catch { /* storage unavailable */ }
   }, [theme]);
 
   useEffect(() => {

@@ -29,7 +29,7 @@ export default function Cashier() {
     try {
       const active = await db.query<ShiftRecord>('SELECT * FROM shifts WHERE status = \'active\' ORDER BY id DESC LIMIT 1');
       if (active.length > 0) setActiveShift(active[0]);
-    } catch(_e: unknown) {}
+    } catch(_e: unknown) { /* ignore load errors */ }
   }
 
   async function loadTransactions() {
