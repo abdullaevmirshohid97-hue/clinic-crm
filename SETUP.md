@@ -9,6 +9,11 @@
 ### Talablar
 - [Node.js](https://nodejs.org/) v18 yoki undan yuqori
 - [Supabase](https://supabase.com/) hisobi (bepul)
+- `psql` (PostgreSQL client) — migration uchun kerak
+  - **Mac:** `brew install postgresql`
+  - **Ubuntu/Debian:** `sudo apt install postgresql-client`
+  - **Windows:** [PostgreSQL installer](https://www.postgresql.org/download/windows/) orqali
+  - **Replit:** avtomatik o'rnatilgan ✓
 
 ---
 
@@ -123,6 +128,11 @@ Ilova `http://localhost:5000` da ishga tushadi.
 ### Requirements
 - [Node.js](https://nodejs.org/) v18 or higher
 - [Supabase](https://supabase.com/) account (free tier works)
+- `psql` (PostgreSQL client) — needed for running migrations
+  - **Mac:** `brew install postgresql`
+  - **Ubuntu/Debian:** `sudo apt install postgresql-client`
+  - **Windows:** [PostgreSQL installer](https://www.postgresql.org/download/windows/)
+  - **Replit:** pre-installed ✓
 
 ---
 
