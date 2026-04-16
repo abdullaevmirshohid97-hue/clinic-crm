@@ -7,6 +7,7 @@ import { toast } from 'react-hot-toast';
 import { AppRoutes, PAGE_MAP } from './app/routes';
 import Login from './features/auth/Login';
 import QueueMonitor from './pages/QueueMonitor';
+import { isSupabaseConfigured } from './lib/supabase';
 
 const FKEY_NAV_MAP = {
   help: 'help',
@@ -75,6 +76,34 @@ export default function App() {
   const isMonitor = new URLSearchParams(window.location.search).get('page') === 'monitor';
   if (isMonitor) {
     return <QueueMonitor />;
+  }
+
+  if (!isSupabaseConfigured) {
+    return (
+      <div style={{
+        height: '100vh', display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'center',
+        background: '#0f172a', color: '#e2e8f0', fontFamily: 'sans-serif', padding: 32, textAlign: 'center'
+      }}>
+        <div style={{ fontSize: 48, marginBottom: 16 }}>⚙️</div>
+        <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 12, color: '#f8fafc' }}>
+          Supabase sozlanmagan
+        </h2>
+        <p style={{ color: '#94a3b8', marginBottom: 24, maxWidth: 480, lineHeight: 1.6 }}>
+          Ilovani ishga tushirish uchun <code style={{ background: '#1e293b', padding: '2px 6px', borderRadius: 4, color: '#38bdf8' }}>.env</code> faylini yarating
+          va Supabase credentials ni kiriting.
+        </p>
+        <div style={{
+          background: '#1e293b', borderRadius: 8, padding: '16px 24px',
+          textAlign: 'left', fontSize: 14, color: '#7dd3fc', lineHeight: 2
+        }}>
+          <div>1. <strong style={{ color: '#e2e8f0' }}>.env.example</strong> → <strong style={{ color: '#e2e8f0' }}>.env</strong> nusxa oling</div>
+          <div>2. <strong style={{ color: '#e2e8f0' }}>VITE_SUPABASE_URL</strong> ni to'ldiring</div>
+          <div>3. <strong style={{ color: '#e2e8f0' }}>VITE_SUPABASE_ANON_KEY</strong> ni to'ldiring</div>
+          <div>4. Ilovani qayta ishga tushiring</div>
+        </div>
+      </div>
+    );
   }
 
   if (authState.isLoading) {

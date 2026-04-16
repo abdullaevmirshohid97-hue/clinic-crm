@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useTranslation } from '../i18n/LanguageContext';
+import { useTranslation } from '../../i18n/LanguageContext';
 
 // Realistic mock login panel with token-like session (desktop app patch)
 export default function AuthMock(){

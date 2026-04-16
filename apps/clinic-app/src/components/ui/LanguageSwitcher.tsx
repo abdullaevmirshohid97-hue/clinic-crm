@@ -1,5 +1,5 @@
 import React from 'react'
-import { useTranslation } from '../i18n/LanguageContext'
+import { useTranslation } from '../../i18n/LanguageContext'
 
 export default function LanguageSwitcher(){
   const { lang, setLang, t } = useTranslation()

@@ -1,4 +1,4 @@
-import { supabase } from '../lib/supabase';
+import { supabase, isSupabaseConfigured } from '../lib/supabase';
 
 /**
  * Clary SaaS Auth Store.
@@ -21,7 +21,7 @@ let _state: AuthState = {
   clinicId: null,
   role: null,
   permissions: [],
-  isLoading: true,
+  isLoading: !isSupabaseConfigured ? false : true,
   isAuthenticated: false,
 };
 
@@ -46,6 +46,8 @@ export const authStore = {
   },
 
   async initialize() {
+    if (!isSupabaseConfigured) return;
+
     _state.isLoading = true;
     notify();
 
@@ -69,7 +71,6 @@ export const authStore = {
         return;
       }
     }
-
 
     const { data: { session } } = await supabase.auth.getSession();
     
@@ -119,6 +120,7 @@ export const authStore = {
   },
 
   async login(email: string, password: string) {
+    if (!isSupabaseConfigured) throw new Error('Supabase sozlanmagan');
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) throw error;
     await this.initialize();
@@ -126,6 +128,7 @@ export const authStore = {
   },
 
   async logout() {
+    if (!isSupabaseConfigured) return;
     await supabase.auth.signOut();
     _state = { user: null, session: null, clinicId: null, role: null, permissions: [], isLoading: false, isAuthenticated: false };
     notify();
@@ -142,9 +145,11 @@ export const authStore = {
 };
 
 // Initial trigger
-authStore.initialize();
-
-// Listen for auth state changes
-supabase.auth.onAuthStateChange(() => {
+if (isSupabaseConfigured) {
   authStore.initialize();
-});
+
+  // Listen for auth state changes
+  supabase.auth.onAuthStateChange(() => {
+    authStore.initialize();
+  });
+}
