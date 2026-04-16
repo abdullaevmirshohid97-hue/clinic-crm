@@ -70,61 +70,67 @@ const Reception = forwardRef<ReceptionHandle, Record<string, never>>(
     const serviceGridRef = useRef<HTMLDivElement>(null);
     const doctorGridRef = useRef<HTMLDivElement>(null);
 
-    useEffect(() => {
-      loadData();
-    }, []);
-
-    async function loadData() {
-      try {
-        const allSvc = await db.getAllRows<ClinicService>('services');
-        setServices(
-          allSvc
-            .filter((s) => s.isActive !== 0)
-            .sort((a, b) => (a.orderIndex || 0) - (b.orderIndex || 0))
-        );
-
-        const allDoc = await db.getAllRows<ClinicDoctor>('doctors');
-        setDoctors(
-          allDoc
-            .filter((d) => d.isActive !== 0)
-            .sort((a, b) => (a.fullName || '').localeCompare(b.fullName || ''))
-        );
-
-        // Load active shift
-        await getOrStartShift();
-
-        // Load draft
-        const draft = localStorage.getItem('reception_draft');
-        if (draft) {
-          try {
-            const parsed = JSON.parse(draft);
-            if (parsed.patient) setPatient(parsed.patient);
-            if (parsed.selectedServices) setSelectedServices(parsed.selectedServices);
-            if (parsed.selectedDoctor) setSelectedDoctor(parsed.selectedDoctor);
-            if (parsed.paymentType) setPaymentType(parsed.paymentType);
-            if (parsed.discount) setDiscount(parsed.discount);
-            if (parsed.selectedPatientId) setSelectedPatientId(parsed.selectedPatientId);
-            if (parsed.patientStatsionarInfo)
-              setPatientStatsionarInfo(parsed.patientStatsionarInfo);
-            if (parsed.notes) setNotes(parsed.notes);
-          } catch (e) {
-            /* ignore parse errors */
-          }
-        }
-      } catch (err: unknown) {
-        toast.error(err instanceof Error ? err.message : String(err));
-      } finally {
-        setIsLoaded(true);
+  const getOrStartShift = useCallback(async () => {
+    try {
+      const shifts = await db.getAllRows('shifts');
+      const active = shifts.find(s => s.status === 'active');
+      if (active) {
+        setActiveShift(active as ShiftRecord);
+        return active;
       }
+      
+      const now = new Date();
+      const hour = now.getHours();
+      const type = (hour >= 8 && hour < 17) ? 'day' : 'night';
+      
+      const res = await db.insertReturn('shifts', { type, status: 'active' });
+      const newShift = { ...res, type, status: 'active', id: res.id };
+      setActiveShift(newShift);
+      return newShift;
+    } catch(_e: unknown) {
+      // toast error suppressed here to avoid noise in auto-check
     }
+  }, []);
 
-    // Real-time shift check
-    useEffect(() => {
-      const checkTimer = setInterval(() => {
-        getOrStartShift();
-      }, 30000); // Check every 30s
-      return () => clearInterval(checkTimer);
-    }, []);
+  const loadData = useCallback(async () => {
+    try {
+      const allSvc = await db.getAllRows<ClinicService>('services');
+      setServices(allSvc.filter(s => s.isActive !== 0).sort((a,b) => (a.orderIndex || 0) - (b.orderIndex || 0)));
+      
+      const allDoc = await db.getAllRows<ClinicDoctor>('doctors');
+      setDoctors(allDoc.filter(d => d.isActive !== 0).sort((a,b) => (a.fullName || '').localeCompare(b.fullName || '')));
+      // Load draft
+      const draft = localStorage.getItem('reception_draft');
+      if (draft) {
+        try {
+          const parsed = JSON.parse(draft);
+          if (parsed.patient) setPatient(parsed.patient);
+          if (parsed.selectedServices) setSelectedServices(parsed.selectedServices);
+          if (parsed.selectedDoctor) setSelectedDoctor(parsed.selectedDoctor);
+          if (parsed.paymentType) setPaymentType(parsed.paymentType);
+          if (parsed.discount) setDiscount(parsed.discount);
+          if (parsed.selectedPatientId) setSelectedPatientId(parsed.selectedPatientId);
+          if (parsed.patientStatsionarInfo) setPatientStatsionarInfo(parsed.patientStatsionarInfo);
+          if (parsed.notes) setNotes(parsed.notes);
+        } catch(e) { /* ignore parse errors */ }
+      }
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : String(err));
+    } finally {
+      setIsLoaded(true);
+    }
+  }, [toast, getOrStartShift]);
+
+  useEffect(() => { loadData(); }, [loadData]);
+
+  // Real-time shift check
+  useEffect(() => {
+    const checkTimer = setInterval(() => {
+      getOrStartShift();
+    }, 30000); // Check every 30s
+    return () => clearInterval(checkTimer);
+  }, [getOrStartShift]);
+
 
     useEffect(() => {
       if (!isLoaded) return;

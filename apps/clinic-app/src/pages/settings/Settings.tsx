@@ -119,12 +119,7 @@ export default function Settings() {
     setPrintersLoading(false);
   }, []);
 
-  useEffect(() => {
-    loadAll();
-    loadPrinters();
-  }, [loadPrinters]);
-
-  async function loadAll() {
+  const loadAll = useCallback(async () => {
     try {
       const settingsRows = await db.getAllRows<{ id: number; key: string; value: string }>(
         'settings'
@@ -169,7 +164,9 @@ export default function Settings() {
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : String(err));
     }
-  }
+  }, [toast]);
+
+  useEffect(() => { loadAll(); loadPrinters(); }, [loadAll, loadPrinters]);
 
   // ==== SEARCH FILTERING ====
   const showSection = (keywords: string[]) => {

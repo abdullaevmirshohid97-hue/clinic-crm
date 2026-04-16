@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useTranslation } from '../../i18n/LanguageContext';
 import { useToast } from '../../components/ui/Toast';
 import Modal from '../../components/ui/Modal';
@@ -44,35 +44,31 @@ export default function JournalPage({ onNavigate }: { onNavigate?: (page: string
     setExpandedPatients((prev) => ({ ...prev, [groupKey]: !prev[groupKey] }));
   }
 
+  const loadStats = useCallback(async () => {
+    try{
+      const res = await window?.electronAPI?.journal?.getFinancialStats?.()
+      if (res?.success && res.data) setStats(res.data as typeof stats)
+    } catch(err){ console.error(err) }
+  }, [])
+
+  const loadEntries = useCallback(async (showLoading = true) => {
+    if (showLoading) setLoading(true)
+    try{
+      const res = await window?.electronAPI?.journal?.getComprehensive?.(filters)
+      if (res?.success) setEntries((res.data || []) as JournalEntry[])
+    } catch(err){ console.error(err) }
+    if (showLoading) setLoading(false)
+  }, [filters])
+
   useEffect(() => {
     loadEntries();
     loadStats();
     const interval = setInterval(() => {
-      loadEntries(false);
-      loadStats();
-    }, 15000);
-    return () => clearInterval(interval);
-  }, [filters.from, filters.to, filters.search]);
-
-  async function loadEntries(showLoading = true) {
-    if (showLoading) setLoading(true);
-    try {
-      const res = await window?.electronAPI?.journal?.getComprehensive?.(filters);
-      if (res?.success) setEntries((res.data || []) as JournalEntry[]);
-    } catch (err) {
-      console.error(err);
-    }
-    if (showLoading) setLoading(false);
-  }
-
-  async function loadStats() {
-    try {
-      const res = await window?.electronAPI?.journal?.getFinancialStats?.();
-      if (res?.success && res.data) setStats(res.data as typeof stats);
-    } catch (err) {
-      console.error(err);
-    }
-  }
+      loadEntries(false)
+      loadStats()
+    }, 15000)
+    return () => clearInterval(interval)
+  }, [loadEntries, loadStats])
 
   const formatPrice = (n: number | string | null | undefined) => {
     return Number(n || 0)

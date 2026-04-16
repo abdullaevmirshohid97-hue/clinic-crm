@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from '../../i18n/LanguageContext';
 import { db } from '../../utils/db';
 import { useToast } from '../../components/ui/Toast';
@@ -33,11 +33,7 @@ export default function PatientsToday() {
   const [patients, setPatients] = useState<PatientRow[]>([]);
   const [, setLoading] = useState(true);
 
-  useEffect(() => {
-    loadPatients();
-  }, []);
-
-  async function loadPatients() {
+  const loadPatients = useCallback(async () => {
     try {
       const today = new Date().toISOString().split('T')[0];
       const [apps, pt, docs, svcs] = await Promise.all([
@@ -72,7 +68,11 @@ export default function PatientsToday() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [toast]);
+
+  useEffect(() => {
+    loadPatients();
+  }, [loadPatients]);
 
   function formatPrice(n: number | string | null | undefined) {
     return Number(n || 0).toLocaleString('uz-UZ');

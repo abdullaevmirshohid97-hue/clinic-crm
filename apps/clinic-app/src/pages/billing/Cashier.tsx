@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from '../../i18n/LanguageContext';
 import { useToast } from '../../components/ui/Toast';
 import { db } from '../../utils/db';
@@ -28,18 +28,7 @@ export default function Cashier() {
   });
   const [activeShift, setActiveShift] = useState<ShiftRecord | null>(null);
 
-  useEffect(() => {
-    loadTransactions();
-    loadActiveShift();
-    // Live update every 10 seconds for real-time monitoring
-    const interval = setInterval(() => {
-      loadTransactions();
-      loadActiveShift();
-    }, 10000);
-    return () => clearInterval(interval);
-  }, [date]);
-
-  async function loadActiveShift() {
+  const loadActiveShift = useCallback(async () => {
     try {
       const active = await db.query<ShiftRecord>(
         "SELECT * FROM shifts WHERE status = 'active' ORDER BY id DESC LIMIT 1"
@@ -48,9 +37,9 @@ export default function Cashier() {
     } catch (_e: unknown) {
       /* ignore load errors */
     }
-  }
+  }, []);
 
-  async function loadTransactions() {
+  const loadTransactions = useCallback(async () => {
     try {
       const rows = await db.query<TransactionRecord>(
         `
@@ -99,7 +88,15 @@ export default function Cashier() {
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : String(err));
     }
-  }
+  }, [date, toast]);
+
+  useEffect(() => {
+    loadTransactions();
+    loadActiveShift();
+    // Live update every 10 seconds for real-time monitoring
+    const interval = setInterval(() => { loadTransactions(); loadActiveShift(); }, 10000);
+    return () => clearInterval(interval);
+  }, [date, loadTransactions, loadActiveShift]);
 
   async function handleAddExpense() {
     if (!expenseForm.amount || !expenseForm.description) return;

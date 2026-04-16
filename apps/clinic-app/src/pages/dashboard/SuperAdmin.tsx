@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useToast } from '../../components/ui/Toast';
 interface FeatureFlag {
   id: number;
@@ -16,11 +16,7 @@ export default function SuperAdmin() {
   const [permissions, setPermissions] = useState<PermissionMap>({});
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  async function loadData() {
+  const loadData = useCallback(async () => {
     setLoading(true);
     try {
       if (window.electronAPI) {
@@ -45,7 +41,11 @@ export default function SuperAdmin() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [roles, toast]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   async function togglePermission(role: string, feature: string, current: boolean) {
     try {

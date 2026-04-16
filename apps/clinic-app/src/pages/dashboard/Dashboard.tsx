@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from '../../i18n/LanguageContext';
 import { useToast } from '../../components/ui/Toast';
 import { analyticsApi } from '../../services/clinic.api';
@@ -16,13 +16,7 @@ export default function Dashboard({ onNavigate }: { onNavigate?: (page: string) 
     online_staff: 0,
   });
 
-  useEffect(() => {
-    loadAll();
-    const iv = setInterval(loadAll, 15000);
-    return () => clearInterval(iv);
-  }, []);
-
-  async function loadAll() {
+  const loadAll = useCallback(async () => {
     try {
       // 1. Fetch live metrics from Analytics API
       const metricsRes = await analyticsApi.getDashboard();
@@ -35,7 +29,13 @@ export default function Dashboard({ onNavigate }: { onNavigate?: (page: string) 
     } finally {
       setLoading(false);
     }
-  }
+  }, [toast]);
+
+  useEffect(() => {
+    loadAll();
+    const iv = setInterval(loadAll, 15000);
+    return () => clearInterval(iv);
+  }, [loadAll]);
 
   function formatPrice(num: number | string | null | undefined) {
     return Number(num || 0).toLocaleString('uz-UZ');
