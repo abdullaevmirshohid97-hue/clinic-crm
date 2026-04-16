@@ -20,9 +20,10 @@ export default defineConfig({
     },
   },
   server: {
-    port: 5200,
+    port: 5000,
+    host: '0.0.0.0',
     strictPort: true,
+    allowedHosts: true,
   },
-  // Resolve env files from this app directory regardless of where `vite` is invoked.
   envDir: __dirname,
 });
