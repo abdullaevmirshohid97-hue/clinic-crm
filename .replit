@@ -37,3 +37,7 @@ externalPort = 80
 deploymentTarget = "static"
 build = ["npm", "run", "build", "-w", "apps/clinic-app"]
 publicDir = "apps/clinic-app/dist"
+
+[postMerge]
+path = "scripts/post-merge.sh"
+timeoutMs = 120000
