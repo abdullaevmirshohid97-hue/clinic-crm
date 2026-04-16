@@ -33,7 +33,6 @@ export default function Inpatient() {
   const [inpatientTreatments, setInpatientTreatments] = useState<InpatientTreatmentRecord[]>([]);
   const [, setTreatmentsLoading] = useState(false);
 
-
   const [showPlaceModal, setShowPlaceModal] = useState<RoomRecord | null>(null);
   const [placeForm, setPlaceForm] = useState({
     patientName: '',

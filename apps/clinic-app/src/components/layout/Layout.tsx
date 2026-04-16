@@ -10,7 +10,13 @@ interface LayoutProps {
   onThemeChange: (theme: string) => void;
 }
 
-export default function Layout({ children, activePage, onNavigate, theme, onThemeChange }: LayoutProps) {
+export default function Layout({
+  children,
+  activePage,
+  onNavigate,
+  theme,
+  onThemeChange,
+}: LayoutProps) {
   const [showProfile, setShowProfile] = useState(false);
 
   return (

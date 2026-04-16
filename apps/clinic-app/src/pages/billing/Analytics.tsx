@@ -5,36 +5,144 @@ import Modal from '../../components/ui/Modal';
 import { db } from '../../utils/db';
 import { printReceipt } from '../../utils/printer';
 
-interface DoctorStat { id: number; fullName: string; cnt: number; revenue: number }
-interface ServiceStat { name: string; cnt: number; revenue: number }
-interface PaymentStat { paymentType: string; cnt: number; revenue: number }
-interface DailyRevenue { day: string; revenue: number; serviceRev?: number; statsionarRev?: number }
-interface DebtEntry { amount: number; createdAt: string; patientName: string; serviceName: string }
-interface DebtStats { total: number; patients: number; avg: number; recent: DebtEntry[] }
+interface DoctorStat {
+  id: number;
+  fullName: string;
+  cnt: number;
+  revenue: number;
+}
+interface ServiceStat {
+  name: string;
+  cnt: number;
+  revenue: number;
+}
+interface PaymentStat {
+  paymentType: string;
+  cnt: number;
+  revenue: number;
+}
+interface DailyRevenue {
+  day: string;
+  revenue: number;
+  serviceRev?: number;
+  statsionarRev?: number;
+}
+interface DebtEntry {
+  amount: number;
+  createdAt: string;
+  patientName: string;
+  serviceName: string;
+}
+interface DebtStats {
+  total: number;
+  patients: number;
+  avg: number;
+  recent: DebtEntry[];
+}
 interface DoctorPayoutData {
-  id: number; fullName: string; specialty: string;
-  commission_rate: number; totalRevenue: number; appointmentCount: number; revenue?: number; cnt?: number;
+  id: number;
+  fullName: string;
+  specialty: string;
+  commission_rate: number;
+  totalRevenue: number;
+  appointmentCount: number;
+  revenue?: number;
+  cnt?: number;
 }
 interface PayoutHistoryEntry {
-  id: number; doctor_id: number; amount: number; created_at: string;
-  doctorName: string; specialty: string; percentage?: number; note?: string; [key: string]: unknown;
+  id: number;
+  doctor_id: number;
+  amount: number;
+  created_at: string;
+  doctorName: string;
+  specialty: string;
+  percentage?: number;
+  note?: string;
+  [key: string]: unknown;
 }
-interface CategoryStat { name: string; cnt: number; revenue: number }
-interface StatsionarDept { department: string; totalPatients: number; revenue: number }
+interface CategoryStat {
+  name: string;
+  cnt: number;
+  revenue: number;
+}
+interface StatsionarDept {
+  department: string;
+  totalPatients: number;
+  revenue: number;
+}
 interface DocAppointmentEntry {
-  id: number; createdAt: string; patientName?: string; serviceName?: string;
-  paymentType?: string; transactionAmount?: number; [key: string]: unknown;
+  id: number;
+  createdAt: string;
+  patientName?: string;
+  serviceName?: string;
+  paymentType?: string;
+  transactionAmount?: number;
+  [key: string]: unknown;
 }
-interface SoldItem { name: string; category: string; soldQty: number; revenue: number; txCount: number; profit?: number }
-interface JournalEntry { id?: number; name: string; qty_out?: number; price?: number; category?: string; created_at?: string; entry_type?: string; [key: string]: unknown }
-interface HeatmapCell { dow: number; hr: number; cnt: number }
-interface InsightItem { type: string; text: string; color: string }
-interface ExpensePieItem { category: string; total: number }
-interface ExpenseRow { id: number; category: string; amount: number; description?: string; expenseDate?: string; [key: string]: unknown }
-interface CatMapEntry { name: string; cnt: number; revenue: number }
-interface StatMapEntry { id?: number; fullName?: string; paymentType?: string; name?: string; cnt: number; revenue: number }
-interface DailyMapEntry { d?: string; day?: string; qty?: number; revenue: number }
-interface DeptMapEntry { department: string; totalPatients: number; revenue: number }
+interface SoldItem {
+  name: string;
+  category: string;
+  soldQty: number;
+  revenue: number;
+  txCount: number;
+  profit?: number;
+}
+interface JournalEntry {
+  id?: number;
+  name: string;
+  qty_out?: number;
+  price?: number;
+  category?: string;
+  created_at?: string;
+  entry_type?: string;
+  [key: string]: unknown;
+}
+interface HeatmapCell {
+  dow: number;
+  hr: number;
+  cnt: number;
+}
+interface InsightItem {
+  type: string;
+  text: string;
+  color: string;
+}
+interface ExpensePieItem {
+  category: string;
+  total: number;
+}
+interface ExpenseRow {
+  id: number;
+  category: string;
+  amount: number;
+  description?: string;
+  expenseDate?: string;
+  [key: string]: unknown;
+}
+interface CatMapEntry {
+  name: string;
+  cnt: number;
+  revenue: number;
+}
+interface StatMapEntry {
+  id?: number;
+  fullName?: string;
+  paymentType?: string;
+  name?: string;
+  cnt: number;
+  revenue: number;
+}
+interface DailyMapEntry {
+  d?: string;
+  day?: string;
+  qty?: number;
+  revenue: number;
+}
+interface DeptMapEntry {
+  department: string;
+  totalPatients: number;
+  revenue: number;
+}
 
 export default function Analytics() {
   const { t } = useTranslation();
@@ -55,7 +163,12 @@ export default function Analytics() {
   const [serviceStats, setServiceStats] = useState<ServiceStat[]>([]);
   const [paymentStats, setPaymentStats] = useState<PaymentStat[]>([]);
   const [dailyRevenue, setDailyRevenue] = useState<DailyRevenue[]>([]);
-  const [debtStats, setDebtStats] = useState<DebtStats>({ total: 0, patients: 0, avg: 0, recent: [] });
+  const [debtStats, setDebtStats] = useState<DebtStats>({
+    total: 0,
+    patients: 0,
+    avg: 0,
+    recent: [],
+  });
   const [activeTab, setActiveTab] = useState('overview');
   const [loadingStats, setLoadingStats] = useState(false);
   const [doctorPayouts, setDoctorPayouts] = useState<DoctorPayoutData[]>([]);
@@ -84,10 +197,17 @@ export default function Analytics() {
   });
 
   // ===== NEW: Advanced Analytics State =====
-  const [comparisonData, setComparisonData] = useState({ current: 0, previous: 0, currentPatients: 0, previousPatients: 0 });
+  const [comparisonData, setComparisonData] = useState({
+    current: 0,
+    previous: 0,
+    currentPatients: 0,
+    previousPatients: 0,
+  });
   const [retentionData, setRetentionData] = useState({ newPatients: 0, returningPatients: 0 });
   const [heatmapData, setHeatmapData] = useState<HeatmapCell[]>([]);
-  const [sourceData, _setSourceData] = useState<{ source: string; count: number; pts?: number; rev?: number }[]>([]);
+  const [sourceData, _setSourceData] = useState<
+    { source: string; count: number; pts?: number; rev?: number }[]
+  >([]);
   const [insights, setInsights] = useState<InsightItem[]>([]);
   const [expensePieData, setExpensePieData] = useState<ExpensePieItem[]>([]);
 
@@ -363,7 +483,9 @@ export default function Analytics() {
           };
         })
         .sort(
-          (a, b) => new Date((b as PayoutHistoryEntry).created_at).getTime() - new Date((a as PayoutHistoryEntry).created_at).getTime()
+          (a, b) =>
+            new Date((b as PayoutHistoryEntry).created_at).getTime() -
+            new Date((a as PayoutHistoryEntry).created_at).getTime()
         );
       setPayoutHistory(hist as PayoutHistoryEntry[]);
 
@@ -430,9 +552,7 @@ export default function Analytics() {
         patients: new Set(debts.map((a) => a.patientId)).size,
         avg:
           debts.length > 0
-            ? Math.round(
-                debts.reduce((s, a) => s + a.amount * (a.quantity || 1), 0) / debts.length
-              )
+            ? Math.round(debts.reduce((s, a) => s + a.amount * (a.quantity || 1), 0) / debts.length)
             : 0,
         recent: debts
           .slice(-5)
@@ -486,12 +606,14 @@ export default function Analytics() {
       setStatsionarRevenue(dischargedRp.reduce((s: number, rp) => s + (rp.totalCost || 0), 0));
 
       setExpenses(
-        (exp
+        exp
           .filter((e) => {
             const et = new Date((e as ExpenseRow).expenseDate ?? '').getTime();
             return et >= dFrom && et <= dTo;
           })
-          .sort((a, b) => ((b as ExpenseRow).expenseDate || '').localeCompare((a as ExpenseRow).expenseDate || ''))) as ExpenseRow[]
+          .sort((a, b) =>
+            ((b as ExpenseRow).expenseDate || '').localeCompare((a as ExpenseRow).expenseDate || '')
+          ) as ExpenseRow[]
       );
 
       // Comparison & Insights
@@ -517,8 +639,7 @@ export default function Analytics() {
         filteredApps
           .filter((a) =>
             apps.some(
-              (old) =>
-                old.patientId === a.patientId && new Date(old.createdAt).getTime() < dFrom
+              (old) => old.patientId === a.patientId && new Date(old.createdAt).getTime() < dFrom
             )
           )
           .map((a) => a.patientId)
@@ -1683,7 +1804,8 @@ export default function Analytics() {
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                     {sourceData.map((s, i) => {
-                      const avgPerPt = (s.pts ?? 0) > 0 ? Math.round((s.rev ?? 0) / (s.pts ?? 1)) : 0;
+                      const avgPerPt =
+                        (s.pts ?? 0) > 0 ? Math.round((s.rev ?? 0) / (s.pts ?? 1)) : 0;
                       const maxRev = sourceData[0]?.rev ?? 1;
                       return (
                         <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -1812,10 +1934,10 @@ export default function Analytics() {
                                     transition: 'transform 0.15s',
                                   }}
                                   onMouseEnter={(e) =>
-                                    (((e.target as HTMLElement).style.transform) = 'scale(1.1)')
+                                    ((e.target as HTMLElement).style.transform = 'scale(1.1)')
                                   }
                                   onMouseLeave={(e) =>
-                                    (((e.target as HTMLElement).style.transform) = 'scale(1)')
+                                    ((e.target as HTMLElement).style.transform = 'scale(1)')
                                   }
                                 >
                                   {val > 0 ? val : ''}
@@ -2055,7 +2177,9 @@ export default function Analytics() {
                             {formatPrice(s.rev)}
                           </td>
                           <td style={{ textAlign: 'right' }}>
-                            {formatPrice((s.pts ?? 0) > 0 ? Math.round((s.rev ?? 0) / (s.pts ?? 1)) : 0)}
+                            {formatPrice(
+                              (s.pts ?? 0) > 0 ? Math.round((s.rev ?? 0) / (s.pts ?? 1)) : 0
+                            )}
                           </td>
                         </tr>
                       ))}
@@ -2743,7 +2867,9 @@ export default function Analytics() {
                   <tbody>
                     {pharmData.journal.map((j, i) => (
                       <tr key={i}>
-                        <td>{new Date(j.created_at ?? '').toLocaleString('uz-UZ').slice(11, 16)}</td>
+                        <td>
+                          {new Date(j.created_at ?? '').toLocaleString('uz-UZ').slice(11, 16)}
+                        </td>
                         <td style={{ fontWeight: 600 }}>{j.name}</td>
                         <td style={{ textAlign: 'center' }}>{j.qty_out}</td>
                         <td style={{ textAlign: 'right' }}>

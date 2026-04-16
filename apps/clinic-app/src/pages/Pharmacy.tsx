@@ -7,24 +7,63 @@ import Modal from '../components/ui/Modal';
 import * as XLSX from 'xlsx';
 import { authStore } from '../app/store';
 
-type MedRow = DbRow & { id: number; name: string; qty: number; price: number; category?: string; unit?: string; cost_price?: number; expiry?: string; serial?: string; supplier?: string };
+type MedRow = DbRow & {
+  id: number;
+  name: string;
+  qty: number;
+  price: number;
+  category?: string;
+  unit?: string;
+  cost_price?: number;
+  expiry?: string;
+  serial?: string;
+  supplier?: string;
+};
 type CartItem = MedRow & { cartQty: number };
 interface BarcodeState {
-  input: string; found: MedRow | null; addQty: string; price: string;
-  expiry: string; serial: string; supplier: string; paymentType: string;
+  input: string;
+  found: MedRow | null;
+  addQty: string;
+  price: string;
+  expiry: string;
+  serial: string;
+  supplier: string;
+  paymentType: string;
 }
-interface BcLogEntry { name: string; qty: number; total: number }
+interface BcLogEntry {
+  name: string;
+  qty: number;
+  total: number;
+}
 interface InpatientRow {
-  rpId: number; patientId: number; roomId?: number;
-  patientName: string; phone?: string; roomName?: string; bedIndex?: number;
+  rpId: number;
+  patientId: number;
+  roomId?: number;
+  patientName: string;
+  phone?: string;
+  roomName?: string;
+  bedIndex?: number;
 }
 interface ExcelImportRow {
-  name: string; category: string; supplier: string; expiry: string;
-  qty: number; price: number; unit: string; serial: string; paymentType: string;
+  name: string;
+  category: string;
+  supplier: string;
+  expiry: string;
+  qty: number;
+  price: number;
+  unit: string;
+  serial: string;
+  paymentType: string;
 }
 interface HotMapEntry {
-  name: string; category: string; soldQty: number; revenue: number;
-  txCount: number; price: number; cost: number; profit?: number;
+  name: string;
+  category: string;
+  soldQty: number;
+  revenue: number;
+  txCount: number;
+  price: number;
+  cost: number;
+  profit?: number;
 }
 
 const UNITS = ['dona', 'quti', 'blister', 'ml', 'kg'];
@@ -91,7 +130,9 @@ export default function Pharmacy() {
       return next;
     });
   }
-  const favMeds = favorites.map((id) => medicines.find((m) => m.id === id)).filter((m): m is MedRow => m !== undefined);
+  const favMeds = favorites
+    .map((id) => medicines.find((m) => m.id === id))
+    .filter((m): m is MedRow => m !== undefined);
 
   // Modals
   const [showForm, setShowForm] = useState(false);
@@ -155,9 +196,7 @@ export default function Pharmacy() {
       // Load active inpatient patients (Manual Join)
       try {
         const allRp = await db.getAllRows('room_patients');
-        const activeRp = allRp.filter(
-          (rp) => rp.status === 'active' || rp.status === 'reserved'
-        );
+        const activeRp = allRp.filter((rp) => rp.status === 'active' || rp.status === 'reserved');
         const allRooms = await db.getAllRows('rooms');
 
         const mappedInpat = activeRp.map((rp) => {
@@ -173,9 +212,7 @@ export default function Pharmacy() {
             bedIndex: rp.bedIndex,
           };
         });
-        setInpatientPats(
-          mappedInpat.sort((a, b) => a.patientName.localeCompare(b.patientName))
-        );
+        setInpatientPats(mappedInpat.sort((a, b) => a.patientName.localeCompare(b.patientName)));
       } catch {
         setInpatientPats([]);
       }
@@ -465,9 +502,7 @@ export default function Pharmacy() {
   function bcSearch() {
     const q = bc.input.trim().toLowerCase();
     if (!q) return;
-    const found = medicines.find(
-      (m) => m.name.toLowerCase().includes(q) || String(m.id) === q
-    );
+    const found = medicines.find((m) => m.name.toLowerCase().includes(q) || String(m.id) === q);
     setBc((prev) => ({
       ...prev,
       found: found || {
@@ -662,9 +697,15 @@ export default function Pharmacy() {
             supplier: String(obj['производитель'] || obj['firma'] || obj['supplier'] || '').trim(),
             expiry: exp,
             qty:
-              parseFloat(String(obj['заказ'] || '')) || parseFloat(String(obj['miqdor'] || '')) || parseFloat(String(obj['qty'] || '')) || 0,
+              parseFloat(String(obj['заказ'] || '')) ||
+              parseFloat(String(obj['miqdor'] || '')) ||
+              parseFloat(String(obj['qty'] || '')) ||
+              0,
             price:
-              parseFloat(String(obj['цена'] || '')) || parseFloat(String(obj['narx'] || '')) || parseFloat(String(obj['price'] || '')) || 0,
+              parseFloat(String(obj['цена'] || '')) ||
+              parseFloat(String(obj['narx'] || '')) ||
+              parseFloat(String(obj['price'] || '')) ||
+              0,
             unit: String(obj['birlik'] || 'dona'),
             serial: String(obj['серия'] || obj['seria'] || ''),
             paymentType: String(obj['tolov'] || 'naqd'),
@@ -791,7 +832,10 @@ export default function Pharmacy() {
     }
   }
   function catStats() {
-    const cats: Record<string, { count: number; val: number; sold: number; income: number; profit: number }> = {};
+    const cats: Record<
+      string,
+      { count: number; val: number; sold: number; income: number; profit: number }
+    > = {};
     medicines.forEach((m) => {
       const cat = m.category || 'Boshqa';
       if (!cats[cat]) cats[cat] = { count: 0, val: 0, sold: 0, income: 0, profit: 0 };
@@ -1049,7 +1093,9 @@ export default function Pharmacy() {
         <div className="stats-grid" style={{ marginBottom: 12 }}>
           <div
             className="card glass-card stat-card"
-            style={{ '--card-accent': 'var(--accent-primary)', cursor: 'pointer' } as React.CSSProperties}
+            style={
+              { '--card-accent': 'var(--accent-primary)', cursor: 'pointer' } as React.CSSProperties
+            }
             onClick={() => setShowStatModal('all')}
           >
             <div className="stat-icon">💊</div>
@@ -1060,7 +1106,9 @@ export default function Pharmacy() {
           </div>
           <div
             className="card glass-card stat-card"
-            style={{ '--card-accent': 'var(--accent-warning)', cursor: 'pointer' } as React.CSSProperties}
+            style={
+              { '--card-accent': 'var(--accent-warning)', cursor: 'pointer' } as React.CSSProperties
+            }
             onClick={() => setShowStatModal('low')}
           >
             <div className="stat-icon">⚠️</div>
@@ -1073,7 +1121,9 @@ export default function Pharmacy() {
           </div>
           <div
             className="card glass-card stat-card"
-            style={{ '--card-accent': 'var(--accent-danger)', cursor: 'pointer' } as React.CSSProperties}
+            style={
+              { '--card-accent': 'var(--accent-danger)', cursor: 'pointer' } as React.CSSProperties
+            }
             onClick={() => setShowStatModal('expiry')}
           >
             <div className="stat-icon">🗓️</div>
@@ -1086,7 +1136,9 @@ export default function Pharmacy() {
           </div>
           <div
             className="card glass-card stat-card"
-            style={{ '--card-accent': 'var(--accent-success)', cursor: 'pointer' } as React.CSSProperties}
+            style={
+              { '--card-accent': 'var(--accent-success)', cursor: 'pointer' } as React.CSSProperties
+            }
             onClick={() => setShowAnalytics(true)}
           >
             <div className="stat-icon">💰</div>
@@ -1988,8 +2040,7 @@ export default function Pharmacy() {
                   <b>
                     {
                       excelRows.filter(
-                        (r) =>
-                          !medicines.some((m) => m.name.toLowerCase() === r.name.toLowerCase())
+                        (r) => !medicines.some((m) => m.name.toLowerCase() === r.name.toLowerCase())
                       ).length
                     }
                   </b>
@@ -2226,7 +2277,9 @@ export default function Pharmacy() {
                           )}
                         </td>
                         <td style={{ textAlign: 'center' }}>
-                          <span style={{ fontWeight: 800, color: stockColor(m.qty, m.expiry ?? null) }}>
+                          <span
+                            style={{ fontWeight: 800, color: stockColor(m.qty, m.expiry ?? null) }}
+                          >
                             {m.qty}
                           </span>
                           <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 3 }}>
@@ -3366,8 +3419,7 @@ export default function Pharmacy() {
                     const r = Math.round(255 * intensity);
                     const g = Math.round(60 * intensity);
                     const revSharePct = (
-                      (d.revenue /
-                        (hotMapData.reduce((s: number, x) => s + x.revenue, 0) || 1)) *
+                      (d.revenue / (hotMapData.reduce((s: number, x) => s + x.revenue, 0) || 1)) *
                       100
                     ).toFixed(1);
                     return (
