@@ -9,7 +9,10 @@ set -e
 # .env faylini yuklash (agar mavjud bo'lsa)
 if [ -f ".env" ]; then
   echo ">>> .env fayli yuklanmoqda..."
-  export $(grep -v '^#' .env | grep -v '^$' | xargs)
+  set -a
+  # shellcheck disable=SC1091
+  source .env
+  set +a
 else
   echo ">>> Ogohlantirish: .env fayli topilmadi."
   echo "    .env.example faylini ko'chirib .env yarating va to'ldiring."
