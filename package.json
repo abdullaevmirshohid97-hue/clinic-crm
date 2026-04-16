@@ -14,7 +14,8 @@
     "test": "npm run test -w apps/clinic-app",
     "build": "npm run build --workspaces --if-present",
     "install:all": "npm install",
-    "migrate": "bash scripts/migrate.sh"
+    "migrate": "bash scripts/migrate.sh",
+    "deploy:functions": "bash scripts/deploy-functions.sh"
   },
   "devDependencies": {
     "typescript": "^5.3.3",
