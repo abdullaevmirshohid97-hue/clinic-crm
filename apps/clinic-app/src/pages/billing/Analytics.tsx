@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from '../../i18n/LanguageContext';
 import { useToast } from '../../components/ui/Toast';
 import Modal from '../../components/ui/Modal';
@@ -268,16 +268,7 @@ export default function Analytics() {
     return `date(a.createdAt) = '${now.toISOString().split('T')[0]}'`;
   }
 
-  useEffect(() => {
-    loadStats();
-    loadPharmStats();
-  }, [period, dateFrom, dateTo]);
-
-  useEffect(() => {
-    if (activeTab === 'pharmacy') loadPharmStats();
-  }, [activeTab, pharmPeriod, pharmFrom, pharmTo]);
-
-  async function loadPharmStats() {
+  const loadPharmStats = useCallback(async () => {
     setPharmLoading(true);
     try {
       const meds = await db.getAllRows('pharmacy');
@@ -382,9 +373,9 @@ export default function Analytics() {
       toast.error((e as Error).message);
     }
     setPharmLoading(false);
-  }
+  }, [pharmPeriod, pharmFrom, pharmTo, toast]);
 
-  async function loadStats() {
+  const loadStats = useCallback(async () => {
     setLoadingStats(true);
     try {
       const dFrom = new Date(dateFrom).getTime();
@@ -709,7 +700,16 @@ export default function Analytics() {
     } finally {
       setLoadingStats(false);
     }
-  }
+  }, [dateFrom, dateTo, toast]);
+
+  useEffect(() => {
+    loadStats();
+    loadPharmStats();
+  }, [loadStats, loadPharmStats]);
+
+  useEffect(() => {
+    if (activeTab === 'pharmacy') loadPharmStats();
+  }, [activeTab, loadPharmStats]);
 
   async function saveExpense() {
     if (!expenseForm.amount) return;

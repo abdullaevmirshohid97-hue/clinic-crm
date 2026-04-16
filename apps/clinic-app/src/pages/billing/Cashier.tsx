@@ -94,7 +94,10 @@ export default function Cashier() {
     loadTransactions();
     loadActiveShift();
     // Live update every 10 seconds for real-time monitoring
-    const interval = setInterval(() => { loadTransactions(); loadActiveShift(); }, 10000);
+    const interval = setInterval(() => {
+      loadTransactions();
+      loadActiveShift();
+    }, 10000);
     return () => clearInterval(interval);
   }, [date, loadTransactions, loadActiveShift]);
 

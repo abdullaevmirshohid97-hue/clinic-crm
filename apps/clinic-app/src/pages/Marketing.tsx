@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { db } from '../utils/db';
 import { useToast } from '../components/ui/Toast';
 import Modal from '../components/ui/Modal';
@@ -23,11 +23,7 @@ export default function Marketing() {
     content: '',
   });
 
-  useEffect(() => {
-    loadData();
-  }, [activeTab]);
-
-  async function loadData() {
+  const loadData = useCallback(async () => {
     setLoading(true);
     try {
       if (activeTab === 'segments') {
@@ -55,7 +51,11 @@ export default function Marketing() {
       toast.error(e instanceof Error ? e.message : String(e));
     }
     setLoading(false);
-  }
+  }, [activeTab, toast]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   async function saveCampaign() {
     if (!campaignForm.name || !campaignForm.content) return toast.error("To'ldiring");

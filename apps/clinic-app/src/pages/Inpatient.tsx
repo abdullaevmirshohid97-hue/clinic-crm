@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from '../i18n/LanguageContext';
 import { useToast } from '../components/ui/Toast';
 import Modal from '../components/ui/Modal';
@@ -75,11 +75,35 @@ export default function Inpatient() {
   const [filterNurseStatus, setFilterNurseStatus] = useState('all');
   const [handoverNote, setHandoverNote] = useState('');
 
-  useEffect(() => {
-    loadAll();
-  }, []);
+  const loadTreatments = useCallback(async () => {
+    setTreatmentsLoading(true);
+    try {
+      const allT = await db.getAllRows<InpatientTreatmentRecord>('inpatient_treatments');
+      const trms = allT
+        .filter((t) => {
+          const rp = roomPatients.find((x) => x.id === t.roomPatientId);
+          return rp && rp.status === 'active';
+        })
+        .map((t) => {
+          const rp = roomPatients.find((x) => x.id === t.roomPatientId);
+          return {
+            ...t,
+            patientName: rp ? rp.patientName : "Noma'lum",
+            roomName: rp ? rp.roomName : "Noma'lum",
+          };
+        })
+        .sort((a, b) =>
+          ((a.scheduledTime as string) || '').localeCompare((b.scheduledTime as string) || '')
+        );
+      setInpatientTreatments(trms as InpatientTreatmentRecord[]);
+    } catch (_err: unknown) {
+      /* ignore load errors */
+    } finally {
+      setTreatmentsLoading(false);
+    }
+  }, [roomPatients]);
 
-  async function loadAll() {
+  const loadAll = useCallback(async () => {
     try {
       const rm = await db.getAllRows<RoomRecord>('rooms');
       setRooms(
@@ -118,43 +142,18 @@ export default function Inpatient() {
         });
 
       setRoomPatients(activePats);
-      loadTreatments();
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : String(err));
     }
-  }
+  }, [toast]);
 
-  async function loadTreatments() {
-    setTreatmentsLoading(true);
-    try {
-      const allT = await db.getAllRows<InpatientTreatmentRecord>('inpatient_treatments');
-      const trms = allT
-        .filter((t) => {
-          const rp = roomPatients.find((x) => x.id === t.roomPatientId);
-          return rp && rp.status === 'active';
-        })
-        .map((t) => {
-          const rp = roomPatients.find((x) => x.id === t.roomPatientId);
-          return {
-            ...t,
-            patientName: rp ? rp.patientName : "Noma'lum",
-            roomName: rp ? rp.roomName : "Noma'lum",
-          };
-        })
-        .sort((a, b) =>
-          ((a.scheduledTime as string) || '').localeCompare((b.scheduledTime as string) || '')
-        );
-      setInpatientTreatments(trms as InpatientTreatmentRecord[]);
-    } catch (_err: unknown) {
-      /* ignore load errors */
-    } finally {
-      setTreatmentsLoading(false);
-    }
-  }
+  useEffect(() => {
+    loadAll();
+  }, [loadAll]);
 
   useEffect(() => {
     if (roomPatients.length > 0) loadTreatments();
-  }, [roomPatients]);
+  }, [roomPatients, loadTreatments]);
 
   function formatPrice(n: number | string) {
     return Number(n || 0).toLocaleString('uz-UZ');

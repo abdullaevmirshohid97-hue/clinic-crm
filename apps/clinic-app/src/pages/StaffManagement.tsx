@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { db } from '../utils/db';
 import type { StaffMember } from '../types/clinic';
 import { useToast } from '../components/ui/Toast';
@@ -33,11 +33,7 @@ export default function StaffManagement() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [search, setSearch] = useState('');
 
-  useEffect(() => {
-    loadStaff();
-  }, []);
-
-  async function loadStaff() {
+  const loadStaff = useCallback(async () => {
     setLoading(true);
     try {
       const data = await db.getAllRows<StaffMember>('staff');
@@ -48,7 +44,11 @@ export default function StaffManagement() {
       );
     }
     setLoading(false);
-  }
+  }, [toast]);
+
+  useEffect(() => {
+    loadStaff();
+  }, [loadStaff]);
 
   function openNew() {
     setEditId(null);

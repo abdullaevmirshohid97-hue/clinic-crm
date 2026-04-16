@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useTranslation } from '../i18n/LanguageContext';
 import { useToast } from '../components/ui/Toast';
 import { supabase } from '../lib/supabase';
@@ -164,12 +164,7 @@ export default function Pharmacy() {
   const fileRef = useRef<HTMLInputElement>(null);
   const today = new Date().toISOString().split('T')[0];
 
-  useEffect(() => {
-    loadAll();
-    setTimeout(() => searchRef.current?.focus(), 100);
-  }, []);
-
-  async function loadAll() {
+  const loadAll = useCallback(async () => {
     setLoading(true);
     try {
       const medsRes = await db.getAllRows<MedRow>('pharmacy');
@@ -232,7 +227,12 @@ export default function Pharmacy() {
       toast.error((e as Error).message);
     }
     setLoading(false);
-  }
+  }, [toast, today]);
+
+  useEffect(() => {
+    loadAll();
+    setTimeout(() => searchRef.current?.focus(), 100);
+  }, [loadAll]);
 
   // ─── CRUD
   async function saveForm() {

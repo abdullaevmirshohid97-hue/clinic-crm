@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { db } from '../utils/db';
 import { useToast } from '../components/ui/Toast';
 import type { ArchiveRecord } from '../types/clinic';
@@ -12,11 +12,7 @@ export default function Archive() {
   const [year, setYear] = useState(new Date().getFullYear() - 1);
   const [archiveData, setArchiveData] = useState<ArchiveRecord[]>([]);
 
-  useEffect(() => {
-    loadArchivedData();
-  }, [activeTab, year]);
-
-  async function loadArchivedData() {
+  const loadArchivedData = useCallback(async () => {
     setLoading(true);
     try {
       if (activeTab === 'transactions') {
@@ -52,7 +48,11 @@ export default function Archive() {
       toast.error(e instanceof Error ? e.message : String(e));
     }
     setLoading(false);
-  }
+  }, [activeTab, year, toast]);
+
+  useEffect(() => {
+    loadArchivedData();
+  }, [loadArchivedData]);
 
   async function triggerManualArchive() {
     toast.info('Tizim avtomatik arxivlash rejimida...');

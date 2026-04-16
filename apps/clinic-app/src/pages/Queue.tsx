@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from '../i18n/LanguageContext';
 import { useToast } from '../components/ui/Toast';
 import Modal from '../components/ui/Modal';
@@ -20,21 +20,7 @@ export default function Queue() {
   const [history, setHistory] = useState<QueueTicket[]>([]);
   const [journalDate, setJournalDate] = useState(new Date().toISOString().split('T')[0]);
 
-  useEffect(() => {
-    loadData();
-  }, [journalDate]);
-
-  useEffect(() => {
-    const isToday = journalDate === new Date().toISOString().split('T')[0];
-    const timer = setInterval(() => {
-      if (activeTab === 'board' || (activeTab === 'journal' && isToday)) {
-        loadData();
-      }
-    }, 5000);
-    return () => clearInterval(timer);
-  }, [activeTab, journalDate]);
-
-  async function loadData() {
+  const loadData = useCallback(async () => {
     try {
       const today = new Date().toISOString().split('T')[0];
       const targetDate = activeTab === 'journal' ? journalDate : today;
@@ -60,7 +46,21 @@ export default function Queue() {
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : String(err));
     }
-  }
+  }, [activeTab, journalDate, toast]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  useEffect(() => {
+    const isToday = journalDate === new Date().toISOString().split('T')[0];
+    const timer = setInterval(() => {
+      if (activeTab === 'board' || (activeTab === 'journal' && isToday)) {
+        loadData();
+      }
+    }, 5000);
+    return () => clearInterval(timer);
+  }, [activeTab, journalDate, loadData]);
 
   async function prepareTicket() {
     if (!selectedDoctor) {

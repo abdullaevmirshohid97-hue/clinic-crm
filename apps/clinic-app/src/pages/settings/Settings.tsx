@@ -166,7 +166,10 @@ export default function Settings() {
     }
   }, [toast]);
 
-  useEffect(() => { loadAll(); loadPrinters(); }, [loadAll, loadPrinters]);
+  useEffect(() => {
+    loadAll();
+    loadPrinters();
+  }, [loadAll, loadPrinters]);
 
   // ==== SEARCH FILTERING ====
   const showSection = (keywords: string[]) => {

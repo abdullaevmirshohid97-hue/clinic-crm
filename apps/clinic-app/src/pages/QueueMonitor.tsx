@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { db } from '../utils/db';
 
 interface QueueRow {
@@ -23,13 +23,7 @@ export default function QueueMonitor() {
     return () => clearInterval(timer);
   }, []);
 
-  useEffect(() => {
-    loadData();
-    const interval = setInterval(loadData, 3000);
-    return () => clearInterval(interval);
-  }, [audioEnabled]);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       const today = new Date().toISOString().split('T')[0];
       const rows = await db.query(
@@ -61,7 +55,13 @@ export default function QueueMonitor() {
     } catch (e) {
       console.error('Queue load failed:', e);
     }
-  };
+  }, [audioEnabled]);
+
+  useEffect(() => {
+    loadData();
+    const interval = setInterval(loadData, 3000);
+    return () => clearInterval(interval);
+  }, [loadData]);
 
   const playVoice = (ticket: QueueRow) => {
     if (!window.speechSynthesis) return;

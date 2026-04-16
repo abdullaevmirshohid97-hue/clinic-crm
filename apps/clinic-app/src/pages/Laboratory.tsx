@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { db } from '../utils/db';
 import type {
   LabTest,
@@ -37,9 +37,33 @@ export default function Laboratory() {
   const [activeTest, setActiveTest] = useState<LabTest | null>(null);
   const [resultData, setResultData] = useState<LabResultMap>({});
 
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    try {
+      if (activeTab === 'workflow') {
+        const ts = await db.query(`
+          SELECT lt.*, p.fullName as patientName, p.phone, p.gender, p.birthDate, d.fullName as doctorName 
+          FROM laboratory_tests lt
+          LEFT JOIN patients p ON lt.patientId = p.id
+          LEFT JOIN doctors d ON lt.orderedBy = d.id
+          ORDER BY lt.createdAt DESC
+        `);
+        setTests(ts as LabTest[]);
+        const pt = await db.query<LabPatient>('SELECT * FROM patients ORDER BY fullName ASC');
+        setPatients(pt);
+      }
+      // Always load templates
+      const tpls = await db.query('SELECT * FROM laboratory_templates');
+      setTemplates(tpls as LabTestTemplate[]);
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : String(e));
+    }
+    setLoading(false);
+  }, [activeTab, toast]);
+
   useEffect(() => {
     loadData();
-  }, [activeTab]);
+  }, [loadData]);
 
   // --- Barcode Scanner Listener ---
   useEffect(() => {
@@ -69,31 +93,9 @@ export default function Laboratory() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [tests, showResultModal]);
-
-  async function loadData() {
-    setLoading(true);
-    try {
-      if (activeTab === 'workflow') {
-        const ts = await db.query(`
-          SELECT lt.*, p.fullName as patientName, p.phone, p.gender, p.birthDate, d.fullName as doctorName 
-          FROM laboratory_tests lt
-          LEFT JOIN patients p ON lt.patientId = p.id
-          LEFT JOIN doctors d ON lt.orderedBy = d.id
-          ORDER BY lt.createdAt DESC
-        `);
-        setTests(ts as LabTest[]);
-        const pt = await db.query<LabPatient>('SELECT * FROM patients ORDER BY fullName ASC');
-        setPatients(pt);
-      }
-      // Always load templates
-      const tpls = await db.query('SELECT * FROM laboratory_templates');
-      setTemplates(tpls as LabTestTemplate[]);
-    } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : String(e));
-    }
-    setLoading(false);
-  }
+    // openWriteResult is intentionally omitted to avoid re-binding the listener on every render
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tests, showResultModal, toast]);
 
   // --- Templates ---
   function addTemplateField() {
