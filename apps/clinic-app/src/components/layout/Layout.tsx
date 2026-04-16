@@ -2,7 +2,15 @@ import React, { useState } from 'react';
 import Sidebar from './Sidebar';
 import ClinicProfileModal from './ClinicProfileModal';
 
-export default function Layout({ children, activePage, onNavigate, theme, onThemeChange }: any) {
+interface LayoutProps {
+  children: React.ReactNode;
+  activePage: string;
+  onNavigate: (page: string) => void;
+  theme: string;
+  onThemeChange: (theme: string) => void;
+}
+
+export default function Layout({ children, activePage, onNavigate, theme, onThemeChange }: LayoutProps) {
   const [showProfile, setShowProfile] = useState(false);
 
   return (
@@ -51,8 +59,12 @@ export default function Layout({ children, activePage, onNavigate, theme, onThem
                   fontWeight: 600,
                   transition: '0.2s',
                 }}
-                onMouseEnter={(e: any) => (e.currentTarget.style.transform = 'scale(1.02)')}
-                onMouseLeave={(e: any) => (e.currentTarget.style.transform = 'scale(1)')}
+                onMouseEnter={(e: React.MouseEvent<HTMLButtonElement>) =>
+                  (e.currentTarget.style.transform = 'scale(1.02)')
+                }
+                onMouseLeave={(e: React.MouseEvent<HTMLButtonElement>) =>
+                  (e.currentTarget.style.transform = 'scale(1)')
+                }
               >
                 <span style={{ fontSize: 18 }}>🏥</span>
                 MedCenter InnoClinic

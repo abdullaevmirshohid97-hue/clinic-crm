@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { useTranslation } from '../i18n/LanguageContext';
 import { db } from '../utils/db';
 import type {
   LabTest,
@@ -14,7 +13,6 @@ import { useToast } from '../components/ui/Toast';
 import Modal from '../components/ui/Modal';
 
 export default function Laboratory() {
-  const { t } = useTranslation();
   const toast = useToast();
   const [activeTab, setActiveTab] = useState('workflow'); // workflow, templates
   const [tests, setTests] = useState<LabTest[]>([]);

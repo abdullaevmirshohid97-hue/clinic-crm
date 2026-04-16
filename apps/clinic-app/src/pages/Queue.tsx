@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useTranslation } from '../i18n/LanguageContext';
 import { useToast } from '../components/ui/Toast';
 import Modal from '../components/ui/Modal';
@@ -15,7 +15,6 @@ export default function Queue() {
   const [showNewTicket, setShowNewTicket] = useState(false);
   const [selectedDoctor, setSelectedDoctor] = useState<Doctor | null>(null);
   const [patientName, setPatientName] = useState('');
-  const [filter, setFilter] = useState('all');
   const [previewTicket, setPreviewTicket] = useState<Partial<QueueTicket> | null>(null);
   const [activeTab, setActiveTab] = useState('board'); // 'board' or 'journal'
   const [history, setHistory] = useState<QueueTicket[]>([]);

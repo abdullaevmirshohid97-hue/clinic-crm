@@ -1,12 +1,10 @@
-import React, { useEffect, useState } from 'react';
-import { useTranslation } from '../../i18n/LanguageContext';
+import { useEffect, useState } from 'react';
 
 // Realistic mock login panel with token-like session (desktop app patch)
 export default function AuthMock() {
-  const { t } = useTranslation();
-  const [current, setCurrent] = useState(0);
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
+  const [, setCurrent] = useState(0);
+  const [username] = useState('');
+  const [password] = useState('');
 
   useEffect(() => {
     // Try load from localStorage/session
@@ -19,7 +17,7 @@ export default function AuthMock() {
     }
   }, []);
 
-  async function login() {
+  async function _login() {
     const uname = username.trim();
     if (!uname) return;
     // Simple deterministic id from username for mock
@@ -35,7 +33,7 @@ export default function AuthMock() {
     setCurrent(id);
   }
 
-  function logout() {
+  function _logout() {
     localStorage.removeItem('clinic_token');
     localStorage.removeItem('clinic_user_id');
     try {

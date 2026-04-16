@@ -3,8 +3,38 @@ import { useTranslation } from '../../i18n/LanguageContext';
 import { useToast } from '../../components/ui/Toast';
 import Modal from '../../components/ui/Modal';
 import { db } from '../../utils/db';
-import { supabase } from '../../lib/supabase';
 import { printReceipt } from '../../utils/printer';
+
+interface DoctorStat { id: number; fullName: string; cnt: number; revenue: number }
+interface ServiceStat { name: string; cnt: number; revenue: number }
+interface PaymentStat { paymentType: string; cnt: number; revenue: number }
+interface DailyRevenue { day: string; revenue: number; serviceRev?: number; statsionarRev?: number }
+interface DebtEntry { amount: number; createdAt: string; patientName: string; serviceName: string }
+interface DebtStats { total: number; patients: number; avg: number; recent: DebtEntry[] }
+interface DoctorPayoutData {
+  id: number; fullName: string; specialty: string;
+  commission_rate: number; totalRevenue: number; appointmentCount: number; revenue?: number; cnt?: number;
+}
+interface PayoutHistoryEntry {
+  id: number; doctor_id: number; amount: number; created_at: string;
+  doctorName: string; specialty: string; percentage?: number; note?: string; [key: string]: unknown;
+}
+interface CategoryStat { name: string; cnt: number; revenue: number }
+interface StatsionarDept { department: string; totalPatients: number; revenue: number }
+interface DocAppointmentEntry {
+  id: number; createdAt: string; patientName?: string; serviceName?: string;
+  paymentType?: string; transactionAmount?: number; [key: string]: unknown;
+}
+interface SoldItem { name: string; category: string; soldQty: number; revenue: number; txCount: number; profit?: number }
+interface JournalEntry { id?: number; name: string; qty_out?: number; price?: number; category?: string; created_at?: string; entry_type?: string; [key: string]: unknown }
+interface HeatmapCell { dow: number; hr: number; cnt: number }
+interface InsightItem { type: string; text: string; color: string }
+interface ExpensePieItem { category: string; total: number }
+interface ExpenseRow { id: number; category: string; amount: number; description?: string; expenseDate?: string; [key: string]: unknown }
+interface CatMapEntry { name: string; cnt: number; revenue: number }
+interface StatMapEntry { id?: number; fullName?: string; paymentType?: string; name?: string; cnt: number; revenue: number }
+interface DailyMapEntry { d?: string; day?: string; qty?: number; revenue: number }
+interface DeptMapEntry { department: string; totalPatients: number; revenue: number }
 
 export default function Analytics() {
   const { t } = useTranslation();
@@ -19,17 +49,17 @@ export default function Analytics() {
     totalAppointments: 0,
     totalPayouts: 0,
   });
-  const [doctorStats, setDoctorStats] = useState<any[]>([]);
-  const [showDoctorModal, setShowDoctorModal] = useState<any>(null);
+  const [doctorStats, setDoctorStats] = useState<DoctorStat[]>([]);
+  const [showDoctorModal, setShowDoctorModal] = useState<DoctorPayoutData | null>(null);
   const [payoutForm, setPayoutForm] = useState({ percentage: 50, note: '' });
-  const [serviceStats, setServiceStats] = useState<any[]>([]);
-  const [paymentStats, setPaymentStats] = useState<any[]>([]);
-  const [dailyRevenue, setDailyRevenue] = useState<any[]>([]);
-  const [debtStats, setDebtStats] = useState<any>({ total: 0, patients: 0, avg: 0, recent: [] });
+  const [serviceStats, setServiceStats] = useState<ServiceStat[]>([]);
+  const [paymentStats, setPaymentStats] = useState<PaymentStat[]>([]);
+  const [dailyRevenue, setDailyRevenue] = useState<DailyRevenue[]>([]);
+  const [debtStats, setDebtStats] = useState<DebtStats>({ total: 0, patients: 0, avg: 0, recent: [] });
   const [activeTab, setActiveTab] = useState('overview');
   const [loadingStats, setLoadingStats] = useState(false);
-  const [doctorPayouts, setDoctorPayouts] = useState<any[]>([]);
-  const [payoutHistory, setPayoutHistory] = useState<any[]>([]);
+  const [doctorPayouts, setDoctorPayouts] = useState<DoctorPayoutData[]>([]);
+  const [payoutHistory, setPayoutHistory] = useState<PayoutHistoryEntry[]>([]);
   const [statsionarStats, setStatsionarStats] = useState({
     totalRevenue: 0,
     patientCount: 0,
@@ -38,13 +68,13 @@ export default function Analytics() {
   });
   const [statsionarRevenue, setStatsionarRevenue] = useState(0);
   const [serviceRevenue, setServiceRevenue] = useState(0);
-  const [revenueTrends, setRevenueTrends] = useState<any[]>([]);
-  const [showDetailsModal, setShowDetailsModal] = useState<any>(null);
-  const [doctorAppointments, setDoctorAppointments] = useState<any[]>([]);
-  const [categoryStats, setCategoryStats] = useState<any[]>([]);
+  const [revenueTrends, _setRevenueTrends] = useState<DailyRevenue[]>([]);
+  const [showDetailsModal, setShowDetailsModal] = useState<DoctorPayoutData | null>(null);
+  const [doctorAppointments, setDoctorAppointments] = useState<DocAppointmentEntry[]>([]);
+  const [categoryStats, setCategoryStats] = useState<CategoryStat[]>([]);
   const [averageCheck, setAverageCheck] = useState(0);
-  const [statsionarDetails, setStatsionarDetails] = useState<any[]>([]);
-  const [expenses, setExpenses] = useState<any[]>([]);
+  const [statsionarDetails, setStatsionarDetails] = useState<StatsionarDept[]>([]);
+  const [expenses, setExpenses] = useState<ExpenseRow[]>([]);
   const [showExpenseModal, setShowExpenseModal] = useState(false);
   const [expenseForm, setExpenseForm] = useState({
     category: 'Rent',
@@ -54,17 +84,12 @@ export default function Analytics() {
   });
 
   // ===== NEW: Advanced Analytics State =====
-  const [comparisonData, setComparisonData] = useState<any>({
-    current: 0,
-    previous: 0,
-    currentPatients: 0,
-    previousPatients: 0,
-  });
-  const [retentionData, setRetentionData] = useState<any>({ newPatients: 0, returningPatients: 0 });
-  const [heatmapData, setHeatmapData] = useState<any[]>([]);
-  const [sourceData, setSourceData] = useState<any[]>([]);
-  const [insights, setInsights] = useState<any[]>([]);
-  const [expensePieData, setExpensePieData] = useState<any[]>([]);
+  const [comparisonData, setComparisonData] = useState({ current: 0, previous: 0, currentPatients: 0, previousPatients: 0 });
+  const [retentionData, setRetentionData] = useState({ newPatients: 0, returningPatients: 0 });
+  const [heatmapData, setHeatmapData] = useState<HeatmapCell[]>([]);
+  const [sourceData, _setSourceData] = useState<{ source: string; count: number; pts?: number; rev?: number }[]>([]);
+  const [insights, setInsights] = useState<InsightItem[]>([]);
+  const [expensePieData, setExpensePieData] = useState<ExpensePieItem[]>([]);
 
   // ===== PHARMACY ANALYTICS TYPES =====
   interface PharmData {
@@ -74,12 +99,12 @@ export default function Analytics() {
     totalStockVal: number;
     totalRevenue: number;
     totalProfit: number;
-    topSellers: any[];
-    slowSellers: any[];
-    mostProfit: any[];
+    topSellers: SoldItem[];
+    slowSellers: SoldItem[];
+    mostProfit: SoldItem[];
     hourly: { h: number; qty: number; revenue: number }[];
     daily: { d: string; qty: number; revenue: number }[];
-    journal: any[];
+    journal: JournalEntry[];
   }
 
   const [pharmPeriod, setPharmPeriod] = useState('week'); // hour|day|week|month|year|custom
@@ -101,7 +126,7 @@ export default function Analytics() {
   });
   const [pharmLoading, setPharmLoading] = useState(false);
 
-  function getPeriodCondition() {
+  function _getPeriodCondition() {
     const d1 = dateFrom || new Date().toISOString().split('T')[0];
     const d2 = dateTo || new Date().toISOString().split('T')[0];
     if (period === 'custom') {
@@ -136,7 +161,7 @@ export default function Analytics() {
     setPharmLoading(true);
     try {
       const meds = await db.getAllRows('pharmacy');
-      const today = new Date().toISOString().split('T')[0];
+      const _today = new Date().toISOString().split('T')[0];
       const soon = new Date();
       soon.setDate(soon.getDate() + 30);
       const soonStr = soon.toISOString().split('T')[0];
@@ -170,8 +195,8 @@ export default function Analytics() {
         .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
       // Aggregate by medicine name
-      const agg: any = {};
-      journal.forEach((j: any) => {
+      const agg: Record<string, SoldItem> = {};
+      journal.forEach((j) => {
         if (!agg[j.name])
           agg[j.name] = {
             name: j.name,
@@ -184,28 +209,28 @@ export default function Analytics() {
         agg[j.name].revenue += (j.qty_out || 0) * (j.price || 0);
         agg[j.name].txCount += 1;
       });
-      const aggArr = Object.values(agg).sort((a: any, b: any) => b.soldQty - a.soldQty);
+      const aggArr = Object.values(agg).sort((a, b) => b.soldQty - a.soldQty);
 
       // Profit calc (using cost_price from meds)
       const profitArr = aggArr
-        .map((a: any) => {
-          const med = meds?.find((m: any) => m.name === a.name);
+        .map((a) => {
+          const med = meds.find((m) => m.name === a.name);
           const cp = med?.cost_price || 0;
           return { ...a, profit: a.soldQty * (a.revenue / Math.max(a.soldQty, 1) - cp) };
         })
-        .sort((a: any, b: any) => b.profit - a.profit);
+        .sort((a, b) => b.profit - a.profit);
 
       // Hourly distribution (last 24h)
       const hourly = Array.from({ length: 24 }, (_, h) => ({ h, qty: 0, revenue: 0 }));
-      journal.forEach((j: any) => {
+      journal.forEach((j) => {
         const h = new Date(j.created_at).getHours();
         hourly[h].qty += j.qty_out || 0;
         hourly[h].revenue += (j.qty_out || 0) * (j.price || 0);
       });
 
       // Daily distribution
-      const dailyMap: any = {};
-      journal.forEach((j: any) => {
+      const dailyMap: Record<string, DailyMapEntry> = {};
+      journal.forEach((j) => {
         const d = j.created_at?.split('T')[0] || '';
         if (!d) return;
         if (!dailyMap[d]) dailyMap[d] = { d, qty: 0, revenue: 0 };
@@ -213,11 +238,11 @@ export default function Analytics() {
         dailyMap[d].revenue += (j.qty_out || 0) * (j.price || 0);
       });
       const dailyArr = Object.values(dailyMap)
-        .sort((a: any, b: any) => (a.d > b.d ? 1 : -1))
+        .sort((a, b) => ((a.d ?? '') > (b.d ?? '') ? 1 : -1))
         .slice(-30);
 
-      const totalRevenue = aggArr.reduce((s: number, a: any) => s + (a.revenue || 0), 0) as number;
-      const totalProfit = profitArr.reduce((s: number, a: any) => s + (a.profit || 0), 0) as number;
+      const totalRevenue = aggArr.reduce((s: number, a) => s + (a.revenue || 0), 0) as number;
+      const totalProfit = profitArr.reduce((s: number, a) => s + (a.profit || 0), 0) as number;
 
       setPharmData({
         totalMeds,
@@ -227,14 +252,14 @@ export default function Analytics() {
         totalRevenue,
         totalProfit,
         topSellers: aggArr.slice(0, 10),
-        slowSellers: [...aggArr].sort((a: any, b: any) => a.soldQty - b.soldQty).slice(0, 10),
+        slowSellers: [...aggArr].sort((a, b) => a.soldQty - b.soldQty).slice(0, 10),
         mostProfit: profitArr.slice(0, 10),
         hourly,
-        daily: dailyArr as any[],
-        journal: journal.slice(0, 100),
+        daily: dailyArr as { d: string; qty: number; revenue: number }[],
+        journal: journal.slice(0, 100) as JournalEntry[],
       });
-    } catch (e: any) {
-      toast.error(e.message);
+    } catch (e: unknown) {
+      toast.error((e as Error).message);
     }
     setPharmLoading(false);
   }
@@ -257,30 +282,30 @@ export default function Analytics() {
       ]);
 
       // Filtered Data
-      const filteredApps = apps.filter((a: any) => {
+      const filteredApps = apps.filter((a) => {
         const ct = new Date(a.createdAt).getTime();
         return ct >= dFrom && ct <= dTo;
       });
 
-      const filteredTxs = txs.filter((t: any) => {
+      const filteredTxs = txs.filter((t) => {
         const ct = new Date(t.createdAt).getTime();
         return ct >= dFrom && ct <= dTo;
       });
 
       // Overview Stats
       const revenueTxs = filteredTxs.filter(
-        (t: any) => t.type === 'payment' || t.type === 'pharmacy_sale'
+        (t) => t.type === 'payment' || t.type === 'pharmacy_sale'
       );
-      const totalRevenue = revenueTxs.reduce((s, t: any) => s + (t.amount || 0), 0);
-      const totalPatients = new Set(filteredApps.map((a: any) => a.patientId)).size;
+      const totalRevenue = revenueTxs.reduce((s, t) => s + (t.amount || 0), 0);
+      const totalPatients = new Set(filteredApps.map((a) => a.patientId)).size;
       const totalAppointments = filteredApps.length;
 
       const periodPayouts = payouts
-        .filter((p: any) => {
+        .filter((p) => {
           const ct = new Date(p.created_at).getTime();
           return ct >= dFrom && ct <= dTo;
         })
-        .reduce((s, p: any) => s + (p.amount || 0), 0);
+        .reduce((s, p) => s + (p.amount || 0), 0);
 
       setStats({
         totalRevenue,
@@ -292,25 +317,25 @@ export default function Analytics() {
       setAverageCheck(totalAppointments > 0 ? Math.round(totalRevenue / totalAppointments) : 0);
 
       // Category Stats
-      const catMap: any = {};
-      filteredApps.forEach((a: any) => {
-        const s = svcs.find((x: any) => x.id === a.serviceId);
-        const cat = s ? (s as any).category : 'Boshqa';
+      const catMap: Record<string, CatMapEntry> = {};
+      filteredApps.forEach((a) => {
+        const s = svcs.find((x) => x.id === a.serviceId);
+        const cat = s ? s.category : 'Boshqa';
         if (!catMap[cat]) catMap[cat] = { name: cat, cnt: 0, revenue: 0 };
         catMap[cat].cnt++;
-        const t = txs.find((tx: any) => tx.appointmentId === a.id && tx.type === 'payment');
+        const t = txs.find((tx) => tx.appointmentId === a.id && tx.type === 'payment');
         if (t) catMap[cat].revenue += t.amount || 0;
       });
-      setCategoryStats(Object.values(catMap).sort((a: any, b: any) => b.cnt - a.cnt));
+      setCategoryStats(Object.values(catMap).sort((a, b) => b.cnt - a.cnt));
 
       // Doctor Payouts Calculated Stats
       const doctorPayoutData = docs
-        .map((d: any) => {
-          const dApps = filteredApps.filter((a: any) => a.doctorId === d.id);
+        .map((d) => {
+          const dApps = filteredApps.filter((a) => a.doctorId === d.id);
           const dTxs = txs.filter(
-            (t: any) => t.type === 'payment' && dApps.some((a: any) => a.id === t.appointmentId)
+            (t) => t.type === 'payment' && dApps.some((a) => a.id === t.appointmentId)
           );
-          const rev = dTxs.reduce((s: number, t: any) => s + (t.amount || 0), 0);
+          const rev = dTxs.reduce((s: number, t) => s + (t.amount || 0), 0);
           return {
             id: d.id,
             fullName: d.fullName,
@@ -320,122 +345,122 @@ export default function Analytics() {
             appointmentCount: dApps.length,
           };
         })
-        .filter((d: any) => d.totalRevenue > 0 || docs.find((x: any) => x.id === d.id)?.isActive);
+        .filter((d) => d.totalRevenue > 0 || docs.find((x) => x.id === d.id)?.isActive);
       setDoctorPayouts(doctorPayoutData);
 
       // History
       const hist = payouts
-        .filter((p: any) => {
+        .filter((p) => {
           const ct = new Date(p.created_at).getTime();
           return ct >= dFrom && ct <= dTo;
         })
-        .map((p: any) => {
-          const d = docs.find((x: any) => x.id === p.doctor_id);
+        .map((p) => {
+          const d = docs.find((x) => x.id === p.doctor_id);
           return {
             ...p,
-            doctorName: d ? (d as any).fullName : "Noma'lum",
-            specialty: d ? (d as any).specialty : '',
+            doctorName: d ? d.fullName : "Noma'lum",
+            specialty: d ? d.specialty : '',
           };
         })
         .sort(
-          (a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+          (a, b) => new Date((b as PayoutHistoryEntry).created_at).getTime() - new Date((a as PayoutHistoryEntry).created_at).getTime()
         );
-      setPayoutHistory(hist);
+      setPayoutHistory(hist as PayoutHistoryEntry[]);
 
       // Doctor Distribution
-      const dStatMap: any = {};
-      filteredApps.forEach((a: any) => {
-        const d = docs.find((x: any) => x.id === a.doctorId);
-        const name = d ? (d as any).fullName : "Noma'lum";
+      const dStatMap: Record<string, StatMapEntry> = {};
+      filteredApps.forEach((a) => {
+        const d = docs.find((x) => x.id === a.doctorId);
+        const name = d ? d.fullName : "Noma'lum";
         if (!dStatMap[a.doctorId])
           dStatMap[a.doctorId] = { id: a.doctorId, fullName: name, cnt: 0, revenue: 0 };
         dStatMap[a.doctorId].cnt++;
-        const t = txs.find((tx: any) => tx.appointmentId === a.id && tx.type === 'payment');
+        const t = txs.find((tx) => tx.appointmentId === a.id && tx.type === 'payment');
         if (t) dStatMap[a.doctorId].revenue += t.amount || 0;
       });
-      setDoctorStats(Object.values(dStatMap).sort((a: any, b: any) => b.revenue - a.revenue));
+      setDoctorStats(Object.values(dStatMap).sort((a, b) => b.revenue - a.revenue) as DoctorStat[]);
 
       // Service Stats
-      const sStatMap: any = {};
-      filteredApps.forEach((a: any) => {
-        const s = svcs.find((x: any) => x.id === a.serviceId);
-        const name = s ? (s as any).name : "Noma'lum";
+      const sStatMap: Record<string, StatMapEntry> = {};
+      filteredApps.forEach((a) => {
+        const s = svcs.find((x) => x.id === a.serviceId);
+        const name = s ? s.name : "Noma'lum";
         if (!sStatMap[a.serviceId]) sStatMap[a.serviceId] = { name, cnt: 0, revenue: 0 };
         sStatMap[a.serviceId].cnt++;
-        const t = txs.find((tx: any) => tx.appointmentId === a.id && tx.type === 'payment');
+        const t = txs.find((tx) => tx.appointmentId === a.id && tx.type === 'payment');
         if (t) sStatMap[a.serviceId].revenue += t.amount || 0;
       });
       setServiceStats(
         Object.values(sStatMap)
-          .sort((a: any, b: any) => b.cnt - a.cnt)
-          .slice(0, 10)
+          .sort((a, b) => b.cnt - a.cnt)
+          .slice(0, 10) as ServiceStat[]
       );
 
       // Payment Types
-      const pStatMap: any = {};
-      filteredApps.forEach((a: any) => {
-        const pt = (a as any).paymentType || "Noma'lum";
+      const pStatMap: Record<string, StatMapEntry> = {};
+      filteredApps.forEach((a) => {
+        const pt = a.paymentType || "Noma'lum";
         if (!pStatMap[pt]) pStatMap[pt] = { paymentType: pt, cnt: 0, revenue: 0 };
         pStatMap[pt].cnt++;
-        const t = txs.find((tx: any) => tx.appointmentId === a.id && tx.type === 'payment');
+        const t = txs.find((tx) => tx.appointmentId === a.id && tx.type === 'payment');
         if (t) pStatMap[pt].revenue += t.amount || 0;
       });
-      setPaymentStats(Object.values(pStatMap));
+      setPaymentStats(Object.values(pStatMap) as PaymentStat[]);
 
       // Daily Revenue (Last 30 days)
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-      const dailyMap2: any = {};
+      const dailyMap2: Record<string, number> = {};
       txs
-        .filter((t: any) => t.type === 'payment' && new Date(t.createdAt) >= thirtyDaysAgo)
-        .forEach((t: any) => {
+        .filter((t) => t.type === 'payment' && new Date(t.createdAt) >= thirtyDaysAgo)
+        .forEach((t) => {
           const day = t.createdAt.split('T')[0];
           dailyMap2[day] = (dailyMap2[day] || 0) + (t.amount || 0);
         });
       setDailyRevenue(
         Object.entries(dailyMap2)
           .map(([day, revenue]) => ({ day, revenue }))
-          .sort((a: any, b: any) => a.day.localeCompare(b.day))
+          .sort((a, b) => a.day.localeCompare(b.day))
       );
 
       // Debts
-      const debts = filteredApps.filter((a: any) => (a as any).paymentType === 'debt');
+      const debts = filteredApps.filter((a) => a.paymentType === 'debt');
       setDebtStats({
-        total: debts.reduce((s, a: any) => s + a.amount * (a.quantity || 1), 0),
-        patients: new Set(debts.map((a: any) => a.patientId)).size,
+        total: debts.reduce((s, a) => s + a.amount * (a.quantity || 1), 0),
+        patients: new Set(debts.map((a) => a.patientId)).size,
         avg:
           debts.length > 0
             ? Math.round(
-                debts.reduce((s, a: any) => s + a.amount * (a.quantity || 1), 0) / debts.length
+                debts.reduce((s, a) => s + a.amount * (a.quantity || 1), 0) / debts.length
               )
             : 0,
         recent: debts
           .slice(-5)
-          .map((a: any) => {
-            const p = pats.find((x: any) => x.id === a.patientId);
-            const s = svcs.find((x: any) => x.id === a.serviceId);
+          .map((a) => {
+            const p = pats.find((x) => x.id === a.patientId);
+            const s = svcs.find((x) => x.id === a.serviceId);
             return {
               amount: a.amount * (a.quantity || 1),
               createdAt: a.createdAt,
-              patientName: p ? (p as any).fullName : "Noma'lum",
-              serviceName: s ? (s as any).name : '—',
+              patientName: p ? p.fullName : "Noma'lum",
+              serviceName: s ? s.name : '—',
             };
           })
           .reverse(),
       });
 
       // Statsionar
-      const dischargedRp = rps.filter((rp: any) => {
+      const dischargedRp = rps.filter((rp) => {
         if (rp.status !== 'discharged') return false;
         const et = new Date(rp.exitDate).getTime();
         return et >= dFrom && et <= dTo;
       });
       // Need rooms for department stats
       const rooms = await db.getAllRows('rooms');
-      const stDeptMap: any = {};
-      dischargedRp.forEach((rp: any) => {
-        const rm = rooms.find((r: any) => r.id === rp.roomId);
-        const dept = rm ? (rm as any).department : 'Boshqa';
+      const stDeptMap: Record<string, DeptMapEntry> = {};
+      dischargedRp.forEach((rp) => {
+        const rm = rooms.find((r) => r.id === rp.roomId);
+        const dept = rm ? rm.department : 'Boshqa';
         if (!stDeptMap[dept]) stDeptMap[dept] = { department: dept, totalPatients: 0, revenue: 0 };
         stDeptMap[dept].totalPatients++;
         stDeptMap[dept].revenue += rp.totalCost || 0;
@@ -455,48 +480,48 @@ export default function Analytics() {
 
       setServiceRevenue(
         revenueTxs
-          .filter((t: any) => filteredApps.some((a: any) => a.id === t.appointmentId))
-          .reduce((s: number, t: any) => s + (t.amount || 0), 0)
+          .filter((t) => filteredApps.some((a) => a.id === t.appointmentId))
+          .reduce((s: number, t) => s + (t.amount || 0), 0)
       );
-      setStatsionarRevenue(dischargedRp.reduce((s: number, rp: any) => s + (rp.totalCost || 0), 0));
+      setStatsionarRevenue(dischargedRp.reduce((s: number, rp) => s + (rp.totalCost || 0), 0));
 
       setExpenses(
-        exp
-          .filter((e: any) => {
-            const et = new Date(e.expenseDate).getTime();
+        (exp
+          .filter((e) => {
+            const et = new Date((e as ExpenseRow).expenseDate ?? '').getTime();
             return et >= dFrom && et <= dTo;
           })
-          .sort((a: any, b: any) => (b.expenseDate || '').localeCompare(a.expenseDate || ''))
+          .sort((a, b) => ((b as ExpenseRow).expenseDate || '').localeCompare((a as ExpenseRow).expenseDate || ''))) as ExpenseRow[]
       );
 
       // Comparison & Insights
       const diff = dTo - dFrom;
       const pFrom = dFrom - diff;
       const pTo = dFrom - 1;
-      const prevApps = apps.filter((a: any) => {
+      const prevApps = apps.filter((a) => {
         const ct = new Date(a.createdAt).getTime();
         return ct >= pFrom && ct <= pTo;
       });
-      const prevTxs = txs.filter((t: any) => {
+      const prevTxs = txs.filter((t) => {
         const ct = new Date(t.createdAt).getTime();
         return ct >= pFrom && ct <= pTo && (t.type === 'payment' || t.type === 'pharmacy_sale');
       });
       setComparisonData({
         current: totalRevenue,
-        previous: prevTxs.reduce((s: number, t: any) => s + (t.amount || 0), 0),
+        previous: prevTxs.reduce((s: number, t) => s + (t.amount || 0), 0),
         currentPatients: totalPatients,
-        previousPatients: new Set(prevApps.map((a: any) => a.patientId)).size,
+        previousPatients: new Set(prevApps.map((a) => a.patientId)).size,
       });
 
       const returningCount = new Set(
         filteredApps
-          .filter((a: any) =>
+          .filter((a) =>
             apps.some(
-              (old: any) =>
+              (old) =>
                 old.patientId === a.patientId && new Date(old.createdAt).getTime() < dFrom
             )
           )
-          .map((a: any) => a.patientId)
+          .map((a) => a.patientId)
       ).size;
       setRetentionData({
         newPatients: totalPatients - returningCount,
@@ -504,10 +529,10 @@ export default function Analytics() {
       });
 
       // Heatmap
-      const hm: any = {};
+      const hm: Record<string, number> = {};
       apps
-        .filter((a: any) => new Date(a.createdAt) >= thirtyDaysAgo)
-        .forEach((a: any) => {
+        .filter((a) => new Date(a.createdAt) >= thirtyDaysAgo)
+        .forEach((a) => {
           const d = new Date(a.createdAt);
           const dow = d.getDay();
           const hr = d.getHours();
@@ -522,24 +547,24 @@ export default function Analytics() {
       );
 
       // Expense Pie
-      const pieMap: any = {};
+      const pieMap: Record<string, number> = {};
       exp
-        .filter((e: any) => {
+        .filter((e) => {
           const et = new Date(e.expenseDate).getTime();
           return et >= dFrom && et <= dTo;
         })
-        .forEach((e: any) => {
+        .forEach((e) => {
           pieMap[e.category] = (pieMap[e.category] || 0) + (e.amount || 0);
         });
-      const pieArr: any[] = Object.entries(pieMap).map(([category, total]) => ({
+      const pieArr: ExpensePieItem[] = Object.entries(pieMap).map(([category, total]) => ({
         category,
         total,
       }));
       if (periodPayouts > 0) pieArr.push({ category: 'Shifokor ulushi', total: periodPayouts });
-      setExpensePieData(pieArr.sort((a: any, b: any) => b.total - a.total));
+      setExpensePieData(pieArr.sort((a, b) => b.total - a.total));
 
       // Insights logic
-      const insightsList: any[] = [];
+      const insightsList: InsightItem[] = [];
       const retPct = (returningCount / Math.max(totalPatients, 1)) * 100;
       if (retPct < 20)
         insightsList.push({
@@ -558,8 +583,8 @@ export default function Analytics() {
           ? insightsList
           : [{ type: 'ok', text: "Ko'rsatkichlar barqaror.", color: 'var(--accent-success)' }]
       );
-    } catch (err: any) {
-      toast.error(err?.message ?? 'Xatolik');
+    } catch (err: unknown) {
+      toast.error((err as Error)?.message ?? 'Xatolik');
     } finally {
       setLoadingStats(false);
     }
@@ -582,22 +607,22 @@ export default function Analytics() {
         date: new Date().toISOString().split('T')[0],
       });
       loadStats();
-    } catch (e: any) {
-      toast.error(e.message);
+    } catch (e: unknown) {
+      toast.error((e as Error).message);
     }
   }
 
-  async function deleteExpense(id: any) {
+  async function deleteExpense(id: number) {
     try {
       await db.delete('expenses', id);
       toast.success("O'chirildi");
       loadStats();
-    } catch (e: any) {
-      toast.error(e.message);
+    } catch (e: unknown) {
+      toast.error((e as Error).message);
     }
   }
 
-  async function loadDoctorAppointments(doctorId: any) {
+  async function loadDoctorAppointments(doctorId: number) {
     try {
       const dFrom = new Date(dateFrom).getTime();
       const dTo = new Date(dateTo + 'T23:59:59').getTime();
@@ -609,31 +634,31 @@ export default function Analytics() {
       ]);
 
       const rows = apps
-        .filter((a: any) => {
+        .filter((a) => {
           const ct = new Date(a.createdAt).getTime();
           return a.doctorId === doctorId && ct >= dFrom && ct <= dTo;
         })
-        .map((a: any) => {
-          const p = pt.find((x: any) => x.id === a.patientId);
-          const s = svc.find((x: any) => x.id === a.serviceId);
-          const t = tx.find((x: any) => x.appointmentId === a.id && x.type === 'payment');
+        .map((a) => {
+          const p = pt.find((x) => x.id === a.patientId);
+          const s = svc.find((x) => x.id === a.serviceId);
+          const t = tx.find((x) => x.appointmentId === a.id && x.type === 'payment');
           return {
             ...a,
-            patientName: p ? (p as any).fullName : "Noma'lum",
-            serviceName: s ? (s as any).name : '—',
-            transactionAmount: t ? (t as any).amount : 0,
-            paymentType: t ? (t as any).paymentType : a.paymentType,
+            patientName: p ? p.fullName : "Noma'lum",
+            serviceName: s ? s.name : '—',
+            transactionAmount: t ? t.amount : 0,
+            paymentType: t ? t.paymentType : a.paymentType,
           };
         });
-      setDoctorAppointments(rows);
-    } catch (err: any) {
-      toast.error(err.message);
+      setDoctorAppointments(rows as DocAppointmentEntry[]);
+    } catch (err: unknown) {
+      toast.error((err as Error).message);
     }
   }
 
   async function handleSavePayout() {
     if (!showDoctorModal) return;
-    const revenue = Number((showDoctorModal as any).revenue);
+    const revenue = Number(showDoctorModal.revenue);
     const share = Math.round(revenue * (payoutForm.percentage / 100));
 
     try {
@@ -647,8 +672,8 @@ export default function Analytics() {
 
       await printReceipt({
         type: 'payout',
-        doctorName: (showDoctorModal as any).fullName,
-        specialty: (showDoctorModal as any).specialty,
+        doctorName: showDoctorModal.fullName,
+        specialty: showDoctorModal.specialty,
         amount: share,
         revenue: revenue,
         percentage: payoutForm.percentage,
@@ -659,28 +684,28 @@ export default function Analytics() {
       setShowDoctorModal(null);
       setPayoutForm({ percentage: 50, note: '' });
       loadStats();
-    } catch (err: any) {
-      toast.error(err.message);
+    } catch (err: unknown) {
+      toast.error((err as Error).message);
     }
   }
 
-  async function handleDeletePayout(id: any) {
+  async function handleDeletePayout(id: number) {
     if (!window.confirm("Ushbu to'lovni o'chirishni tasdiqlaysizmi?")) return;
     try {
       await db.delete('doctor_payouts', id);
       toast.success("To'lov o'chirildi.");
       loadStats();
-    } catch (e: any) {
-      toast.error(e.message);
+    } catch (e: unknown) {
+      toast.error((e as Error).message);
     }
   }
 
-  function formatPrice(n: any) {
+  function formatPrice(n: number | string | null | undefined) {
     return Number(n || 0).toLocaleString('uz-UZ');
   }
 
-  const maxDailyRevenue =
-    dailyRevenue.length > 0 ? Math.max(...dailyRevenue.map((d: any) => d.revenue), 1) : 1;
+  const _maxDailyRevenue =
+    dailyRevenue.length > 0 ? Math.max(...dailyRevenue.map((d) => d.revenue), 1) : 1;
 
   const totalExpenses = expenses.reduce((s, e) => s + (Number(e.amount) || 0), 0);
   const netProfit = stats.totalRevenue - totalExpenses;
@@ -744,7 +769,7 @@ export default function Analytics() {
     },
   ];
 
-  function paymentLabel(type: any) {
+  function paymentLabel(type: string) {
     if (type === 'cash') return '💵 ' + t('reception.cash');
     if (type === 'card') return '💳 ' + t('reception.card');
     if (type === 'transfer') return '🔄 ' + t('reception.transfer');
@@ -752,7 +777,7 @@ export default function Analytics() {
     return type || '—';
   }
 
-  function paymentColor(type: any) {
+  function paymentColor(type: string) {
     if (type === 'cash') return 'var(--accent-success)';
     if (type === 'card') return 'var(--accent-info)';
     if (type === 'transfer') return 'var(--accent-primary)';
@@ -760,12 +785,12 @@ export default function Analytics() {
     return 'var(--text-muted)';
   }
 
-  const totalPaymentRevenue = paymentStats.reduce((s, p: any) => s + p.revenue, 0);
+  const totalPaymentRevenue = paymentStats.reduce((s, p) => s + p.revenue, 0);
 
   function buildDonutGradient() {
     if (paymentStats.length === 0) return 'var(--bg-input)';
     let currentPct = 0;
-    const stops = paymentStats.map((p: any) => {
+    const stops = paymentStats.map((p) => {
       const pct = (p.revenue / totalPaymentRevenue) * 100;
       const start = currentPct;
       currentPct += pct;
@@ -1062,7 +1087,7 @@ export default function Analytics() {
                   >
                     {revenueTrends.map((d, i) => {
                       const maxTrendRev = Math.max(
-                        ...revenueTrends.map((x) => x.serviceRev + x.statsionarRev),
+                        ...revenueTrends.map((x) => (x.serviceRev ?? 0) + (x.statsionarRev ?? 0)),
                         1
                       );
                       return (
@@ -1080,7 +1105,7 @@ export default function Analytics() {
                           <div
                             style={{
                               width: '100%',
-                              height: `${(d.statsionarRev / maxTrendRev) * 160}px`,
+                              height: `${((d.statsionarRev ?? 0) / maxTrendRev) * 160}px`,
                               background: 'var(--accent-warning)',
                               borderRadius: '4px 4px 0 0',
                               transition: 'height 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
@@ -1090,7 +1115,7 @@ export default function Analytics() {
                           <div
                             style={{
                               width: '100%',
-                              height: `${(d.serviceRev / maxTrendRev) * 160}px`,
+                              height: `${((d.serviceRev ?? 0) / maxTrendRev) * 160}px`,
                               background: 'var(--accent-primary)',
                               borderRadius: '4px 4px 0 0',
                               marginTop: 2,
@@ -1658,8 +1683,8 @@ export default function Analytics() {
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                     {sourceData.map((s, i) => {
-                      const avgPerPt = s.pts > 0 ? Math.round(s.rev / s.pts) : 0;
-                      const maxRev = sourceData[0]?.rev || 1;
+                      const avgPerPt = (s.pts ?? 0) > 0 ? Math.round((s.rev ?? 0) / (s.pts ?? 1)) : 0;
+                      const maxRev = sourceData[0]?.rev ?? 1;
                       return (
                         <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                           <div style={{ minWidth: 130, fontWeight: 600, fontSize: 13 }}>
@@ -1677,7 +1702,7 @@ export default function Analytics() {
                             <div
                               style={{
                                 height: '100%',
-                                width: `${Math.max(5, (s.rev / maxRev) * 100)}%`,
+                                width: `${Math.max(5, ((s.rev ?? 0) / maxRev) * 100)}%`,
                                 background:
                                   'linear-gradient(90deg, var(--accent-primary), var(--accent-success))',
                                 borderRadius: 4,
@@ -1718,9 +1743,9 @@ export default function Analytics() {
                 {(() => {
                   const days = ['Yak', 'Dush', 'Sesh', 'Chor', 'Pay', 'Jum', 'Shan'];
                   const hours = Array.from({ length: 13 }, (_, i) => i + 8); // 8:00 - 20:00
-                  const maxCnt = Math.max(...heatmapData.map((h: any) => h.cnt), 1);
+                  const maxCnt = Math.max(...heatmapData.map((h) => h.cnt), 1);
                   const getVal = (dow: number, hr: number) => {
-                    const cell = heatmapData.find((h: any) => h.dow === dow && h.hr === hr);
+                    const cell = heatmapData.find((h) => h.dow === dow && h.hr === hr);
                     return cell ? cell.cnt : 0;
                   };
                   const getColor = (cnt: number) => {
@@ -1787,10 +1812,10 @@ export default function Analytics() {
                                     transition: 'transform 0.15s',
                                   }}
                                   onMouseEnter={(e) =>
-                                    ((e.target as any).style.transform = 'scale(1.1)')
+                                    (((e.target as HTMLElement).style.transform) = 'scale(1.1)')
                                   }
                                   onMouseLeave={(e) =>
-                                    ((e.target as any).style.transform = 'scale(1)')
+                                    (((e.target as HTMLElement).style.transform) = 'scale(1)')
                                   }
                                 >
                                   {val > 0 ? val : ''}
@@ -2030,7 +2055,7 @@ export default function Analytics() {
                             {formatPrice(s.rev)}
                           </td>
                           <td style={{ textAlign: 'right' }}>
-                            {formatPrice(s.pts > 0 ? Math.round(s.rev / s.pts) : 0)}
+                            {formatPrice((s.pts ?? 0) > 0 ? Math.round((s.rev ?? 0) / (s.pts ?? 1)) : 0)}
                           </td>
                         </tr>
                       ))}
@@ -2544,7 +2569,7 @@ export default function Analytics() {
                     paddingBottom: 5,
                   }}
                 >
-                  {pharmData.daily.map((d: any, i: number) => (
+                  {pharmData.daily.map((d, i) => (
                     <div
                       key={i}
                       style={{
@@ -2558,7 +2583,7 @@ export default function Analytics() {
                     >
                       <div
                         style={{
-                          height: `${Math.max(Math.round((d.revenue / Math.max(...pharmData.daily.map((x: any) => x.revenue), 1)) * 100), 4)}%`,
+                          height: `${Math.max(Math.round((d.revenue / Math.max(...pharmData.daily.map((x) => x.revenue), 1)) * 100), 4)}%`,
                           width: 24,
                           borderRadius: '6px 6px 0 0',
                           background: 'linear-gradient(180deg,#7c3aed,#4f46e5)',
@@ -2587,7 +2612,7 @@ export default function Analytics() {
                 ⏰ Soatlik faollik
               </div>
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                {pharmData.hourly.map((h: any, i: number) => (
+                {pharmData.hourly.map((h, i) => (
                   <div
                     key={i}
                     title={`${h.h}:00 — ${Number(h.revenue).toLocaleString()} so'm`}
@@ -2600,7 +2625,7 @@ export default function Analytics() {
                       justifyContent: 'center',
                       background:
                         h.revenue > 0
-                          ? `rgba(124,58,237,${0.2 + (h.revenue / Math.max(...pharmData.hourly.map((x: any) => x.revenue), 1)) * 0.8})`
+                          ? `rgba(124,58,237,${0.2 + (h.revenue / Math.max(...pharmData.hourly.map((x) => x.revenue), 1)) * 0.8})`
                           : 'var(--bg-input)',
                       color: h.revenue > 0 ? '#fff' : 'var(--text-secondary)',
                       fontWeight: 700,
@@ -2656,7 +2681,7 @@ export default function Analytics() {
               <div className="card glass-card p-4">
                 <h4 style={{ color: '#6366f1', marginBottom: 15 }}>🧊 Kam sotilgan</h4>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {pharmData.slowSellers.map((s: any, i: number) => (
+                  {pharmData.slowSellers.map((s, i) => (
                     <div key={i}>
                       <div
                         style={{
@@ -2716,15 +2741,15 @@ export default function Analytics() {
                     </tr>
                   </thead>
                   <tbody>
-                    {pharmData.journal.map((j: any, i: number) => (
+                    {pharmData.journal.map((j, i) => (
                       <tr key={i}>
-                        <td>{new Date(j.created_at).toLocaleString('uz-UZ').slice(11, 16)}</td>
+                        <td>{new Date(j.created_at ?? '').toLocaleString('uz-UZ').slice(11, 16)}</td>
                         <td style={{ fontWeight: 600 }}>{j.name}</td>
                         <td style={{ textAlign: 'center' }}>{j.qty_out}</td>
                         <td style={{ textAlign: 'right' }}>
                           {formatPrice((j.qty_out || 0) * (j.price || 0))}
                         </td>
-                        <td>{j.payment_type}</td>
+                        <td>{String(j.payment_type ?? '')}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -3028,7 +3053,7 @@ export default function Analytics() {
                 ) : (
                   expenses.map((e) => (
                     <tr key={e.id}>
-                      <td>{new Date(e.expenseDate).toLocaleDateString()}</td>
+                      <td>{new Date(e.expenseDate ?? '').toLocaleDateString()}</td>
                       <td>
                         <span className="badge badge-info">{e.category}</span>
                       </td>

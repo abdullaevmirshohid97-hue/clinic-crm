@@ -1,12 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { useTranslation } from '../i18n/LanguageContext';
 import { db } from '../utils/db';
 import { useToast } from '../components/ui/Toast';
 import Modal from '../components/ui/Modal';
 import type { PatientLTVRecord, CampaignRecord } from '../types/clinic';
 
 export default function Marketing() {
-  const { t } = useTranslation();
   const toast = useToast();
   const [activeTab, setActiveTab] = useState('segments'); // segments, campaigns
   const [loading, setLoading] = useState(true);

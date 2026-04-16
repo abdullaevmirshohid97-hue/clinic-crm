@@ -1,9 +1,19 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { db } from '../utils/db';
 
+interface QueueRow {
+  id: number;
+  status: string;
+  number?: number;
+  prefix?: string;
+  roomNumber?: string;
+  doctorName?: string;
+  doctorPrefix?: string;
+}
+
 export default function QueueMonitor() {
-  const [waiting, setWaiting] = useState<any[]>([]);
-  const [inProgress, setInProgress] = useState<any[]>([]);
+  const [waiting, setWaiting] = useState<QueueRow[]>([]);
+  const [inProgress, setInProgress] = useState<QueueRow[]>([]);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [audioEnabled, setAudioEnabled] = useState(false);
   const prevInProgressIds = useRef<Set<number>>(new Set());
@@ -31,29 +41,29 @@ export default function QueueMonitor() {
         [today]
       );
 
-      const newWaiting = rows.filter((r: any) => r.status === 'waiting');
-      const newInProgress = rows.filter((r: any) => r.status === 'in_progress');
+      const newWaiting = (rows as QueueRow[]).filter((r) => r.status === 'waiting');
+      const newInProgress = (rows as QueueRow[]).filter((r) => r.status === 'in_progress');
 
       setWaiting(newWaiting);
       setInProgress(newInProgress);
 
       if (audioEnabled) {
-        const currentInProgressIds = new Set(newInProgress.map((r: any) => r.id));
-        newInProgress.forEach((ticket: any) => {
+        const currentInProgressIds = new Set(newInProgress.map((r) => r.id));
+        newInProgress.forEach((ticket) => {
           if (!prevInProgressIds.current.has(ticket.id)) {
             playVoice(ticket);
           }
         });
         prevInProgressIds.current = currentInProgressIds;
       } else {
-        prevInProgressIds.current = new Set(newInProgress.map((r: any) => r.id));
+        prevInProgressIds.current = new Set(newInProgress.map((r) => r.id));
       }
     } catch (e) {
       console.error('Queue load failed:', e);
     }
   };
 
-  const playVoice = (ticket: any) => {
+  const playVoice = (ticket: QueueRow) => {
     if (!window.speechSynthesis) return;
     const roomText = ticket.roomNumber ? `${ticket.roomNumber}-xonaga` : 'shifokor xonasiga';
     const text = `Diqqat! ${ticket.prefix} ${ticket.number} raqamli bemor. Marhamat, ${roomText} kiring.`;

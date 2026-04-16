@@ -1,8 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useTranslation } from '../../i18n/LanguageContext';
 import { useToast } from '../../components/ui/Toast';
-import Modal from '../../components/ui/Modal';
-
 interface FeatureFlag {
   id: number;
   name: string;
@@ -13,7 +10,6 @@ interface FeatureFlag {
 type PermissionMap = Record<string, Record<string, boolean>>;
 
 export default function SuperAdmin() {
-  const { t } = useTranslation();
   const toast = useToast();
   const [features, setFeatures] = useState<FeatureFlag[]>([]);
   const [roles] = useState(['super_admin', 'admin', 'doctor', 'receptionist', 'cashier']);

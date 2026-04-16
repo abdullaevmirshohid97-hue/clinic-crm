@@ -20,7 +20,7 @@ const LanguageContext = createContext<LanguageContextValue>({
   setLang: () => {},
 });
 
-function getPath(obj: Record<string, unknown>, path: string): unknown {
+function _getPath(obj: Record<string, unknown>, path: string): unknown {
   return path.split('.').reduce((acc: unknown, p: string) => {
     if (acc && typeof acc === 'object') return (acc as Record<string, unknown>)[p];
     return undefined;

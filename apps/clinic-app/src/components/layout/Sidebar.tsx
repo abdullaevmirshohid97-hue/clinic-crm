@@ -2,9 +2,15 @@ import React, { useState, useEffect } from 'react';
 import { useTranslation } from '../../i18n/LanguageContext';
 import { authStore } from '../../app/store';
 import { supabase } from '../../lib/supabase';
-import { PAGE_PERMISSIONS } from '../../utils/permissions';
 
-const NAV_GROUPS = [
+interface NavItem {
+  key: string;
+  icon: string;
+  fKey?: string;
+  badge?: string;
+}
+
+const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
   {
     title: 'Operations',
     items: [
@@ -48,13 +54,13 @@ export default function Sidebar({
   onThemeChange,
 }: {
   activePage: string;
-  onNavigate: any;
+  onNavigate: (page: string) => void;
   theme: string;
-  onThemeChange: any;
+  onThemeChange: (theme: string) => void;
 }) {
   const { t, lang, setLang } = useTranslation();
   const [isCollapsed, setIsCollapsed] = useState(false);
-  const [badges, setBadges] = useState({ lab: 0, inv: 0, debt: 0 });
+  const [badges, setBadges] = useState<Record<string, number>>({ lab: 0, inv: 0, debt: 0 });
   const [showThemeMenu, setShowThemeMenu] = useState(false);
   const [showLangMenu, setShowLangMenu] = useState(false);
   const [showAboutModal, setShowAboutModal] = useState(false);
@@ -106,7 +112,7 @@ export default function Sidebar({
     { key: 'classic', label: '🏥' },
   ];
 
-  const langs = [
+  const langs: { key: 'uz' | 'ru' | 'en'; flag: string }[] = [
     { key: 'uz', flag: '🇺🇿' },
     { key: 'ru', flag: '🇷🇺' },
     { key: 'en', flag: '🇬🇧' },
@@ -200,7 +206,7 @@ export default function Sidebar({
 
       <nav className="sidebar-nav custom-scrollbar">
         {NAV_GROUPS.map((group) => {
-          const visibleItems = group.items.filter((item: any) => {
+          const visibleItems = group.items.filter((item) => {
             return authStore.hasPermission(item.key) || authStore.hasRole('super_admin');
           });
 
@@ -208,7 +214,7 @@ export default function Sidebar({
 
           return (
             <div key={group.title} className="nav-group">
-              {visibleItems.map((item: any) => (
+              {visibleItems.map((item) => (
                 <button
                   key={item.key}
                   className={`nav-item ${activePage === item.key ? 'active' : ''}`}
@@ -217,8 +223,8 @@ export default function Sidebar({
                 >
                   <div className="nav-icon-wrapper">
                     <span className="nav-icon">{item.icon}</span>
-                    {item.badge && (badges as any)[item.badge] > 0 && (
-                      <span className="nav-badge">{(badges as any)[item.badge]}</span>
+                    {item.badge && (badges[item.badge] ?? 0) > 0 && (
+                      <span className="nav-badge">{badges[item.badge]}</span>
                     )}
                   </div>
                   {!isCollapsed && (
@@ -445,7 +451,7 @@ export default function Sidebar({
                   <button
                     key={l.key}
                     onClick={() => {
-                      (setLang as any)(l.key);
+                      setLang(l.key);
                       setShowLangMenu(false);
                     }}
                     style={{

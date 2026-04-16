@@ -1,12 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { useTranslation } from '../i18n/LanguageContext';
 import { db } from '../utils/db';
 import { useToast } from '../components/ui/Toast';
-import Modal from '../components/ui/Modal';
 import type { ArchiveRecord } from '../types/clinic';
 
 export default function Archive() {
-  const { t } = useTranslation();
   const toast = useToast();
   const [activeTab, setActiveTab] = useState('transactions');
   const [loading, setLoading] = useState(true);

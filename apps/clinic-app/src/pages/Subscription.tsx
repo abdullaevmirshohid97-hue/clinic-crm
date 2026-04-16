@@ -7,7 +7,14 @@ export default function Subscription() {
   const [chatMessage, setChatMessage] = useState('');
   const [isPaid, setIsPaid] = useState(false);
 
-  const [messages, setMessages] = useState<any[]>(() => {
+  interface ChatMessage {
+    id: number;
+    sender: 'user' | 'support';
+    text: string;
+    time?: string;
+    status?: string;
+  }
+  const [messages, setMessages] = useState<ChatMessage[]>(() => {
     try {
       const saved = localStorage.getItem('support_chat');
       if (saved) return JSON.parse(saved);
@@ -68,7 +75,7 @@ export default function Subscription() {
   // Mock billing ID for generation
   const mockBillingId = 'TRN-' + Math.floor(100000 + Math.random() * 900000);
 
-  const planRates: any = {
+  const planRates: Record<string, number | string> = {
     Baza: 250000,
     Pro: 600000,
     Korxona: 'Aloqasi bilan',
@@ -611,7 +618,7 @@ export default function Subscription() {
               overflowY: 'auto',
             }}
           >
-            {messages.map((m: any) => (
+            {messages.map((m) => (
               <div
                 key={m.id}
                 style={{
@@ -653,7 +660,7 @@ export default function Subscription() {
             onSubmit={(e) => {
               e.preventDefault();
               if (!chatMessage.trim()) return;
-              const newMsg = {
+              const newMsg: ChatMessage = {
                 id: Date.now(),
                 text: chatMessage,
                 sender: 'user',
@@ -679,7 +686,7 @@ export default function Subscription() {
 
                   // Execute Smart Auto Reply
                   setTimeout(() => {
-                    const aiMsg = {
+                    const aiMsg: ChatMessage = {
                       id: Date.now(),
                       text: autoReply(chatMessage),
                       sender: 'support',

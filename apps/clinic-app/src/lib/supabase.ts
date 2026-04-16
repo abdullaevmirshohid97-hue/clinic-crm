@@ -18,6 +18,8 @@ if (isMissingConfig) {
   );
 }
 
-export const supabase = isMissingConfig ? (null as any) : createClient(url, key);
+export const supabase = isMissingConfig
+  ? (null as unknown as ReturnType<typeof createClient>)
+  : createClient(url, key);
 
 export const isSupabaseConfigured = !isMissingConfig;

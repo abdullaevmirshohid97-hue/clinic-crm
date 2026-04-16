@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, createContext, useContext } from 'react';
+import React, { useState, useCallback, createContext, useContext } from 'react';
 
 interface ToastContextType {
   success: (msg: string) => void;
@@ -9,7 +9,12 @@ interface ToastContextType {
 const ToastContext = createContext<ToastContextType | undefined>(undefined);
 
 export function ToastProvider({ children }: { children: React.ReactNode }) {
-  const [toasts, setToasts] = useState<any[]>([]);
+  interface ToastItem {
+    id: number;
+    message: string;
+    type: string;
+  }
+  const [toasts, setToasts] = useState<ToastItem[]>([]);
 
   const addToast = useCallback((message: string, type = 'info', duration = 3000) => {
     const id = Date.now() + Math.random();

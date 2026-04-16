@@ -31,20 +31,8 @@ export default function Inpatient() {
   const [doctors, setDoctors] = useState<ClinicDoctor[]>([]);
   const [roomPatients, setRoomPatients] = useState<RoomPatientRecord[]>([]);
   const [inpatientTreatments, setInpatientTreatments] = useState<InpatientTreatmentRecord[]>([]);
-  const [treatmentsLoading, setTreatmentsLoading] = useState(false);
+  const [, setTreatmentsLoading] = useState(false);
 
-  const [showRoomModal, setShowRoomModal] = useState(false);
-  const [editRoom, setEditRoom] = useState<RoomRecord | null>(null);
-  const [roomForm, setRoomForm] = useState({
-    name: '',
-    department: '',
-    floor: 1,
-    capacity: 2,
-    type: 'shared',
-    pricePerDay: '',
-    mealPrice: '',
-    cleaningStatus: 'clean',
-  });
 
   const [showPlaceModal, setShowPlaceModal] = useState<RoomRecord | null>(null);
   const [placeForm, setPlaceForm] = useState({
@@ -62,7 +50,6 @@ export default function Inpatient() {
     arrivalTime: new Date().toLocaleTimeString('uz-UZ').slice(0, 5),
     status: 'active',
   });
-  const [isEditingPatient, setIsEditingPatient] = useState<RoomPatientRecord | null>(null);
 
   const [showTreatmentModal, setShowTreatmentModal] = useState<number | null>(null);
   const [treatmentForm, setTreatmentForm] = useState({
@@ -84,7 +71,7 @@ export default function Inpatient() {
 
   const [showVitalsModal, setShowVitalsModal] = useState<RoomPatientRecord | null>(null);
   const [vitalsForm, setVitalsForm] = useState({ temperature: '', bp: '', pulse: '', weight: '' });
-  const [vitalsHistory, setVitalsHistory] = useState<VitalsRecord[]>([]);
+  const [, setVitalsHistory] = useState<VitalsRecord[]>([]);
 
   const [filterNurseStatus, setFilterNurseStatus] = useState('all');
   const [handoverNote, setHandoverNote] = useState('');

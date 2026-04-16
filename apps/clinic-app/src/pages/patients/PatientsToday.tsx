@@ -3,11 +3,35 @@ import { useTranslation } from '../../i18n/LanguageContext';
 import { db } from '../../utils/db';
 import { useToast } from '../../components/ui/Toast';
 
+interface PatientRow {
+  id: number;
+  patientId?: number;
+  doctorId?: number;
+  serviceId?: number;
+  createdAt?: string;
+  amount?: number;
+  quantity?: number;
+  paymentType?: string;
+  patientName: string;
+  patientPhone: string;
+  doctorName: string;
+  serviceName: string;
+}
+
+interface DbRecord {
+  id: number;
+  fullName?: string;
+  phone?: string;
+  name?: string;
+  createdAt?: string;
+  [key: string]: unknown;
+}
+
 export default function PatientsToday() {
   const { t } = useTranslation();
   const toast = useToast();
-  const [patients, setPatients] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [patients, setPatients] = useState<PatientRow[]>([]);
+  const [, setLoading] = useState(true);
 
   useEffect(() => {
     loadPatients();
@@ -17,32 +41,32 @@ export default function PatientsToday() {
     try {
       const today = new Date().toISOString().split('T')[0];
       const [apps, pt, docs, svcs] = await Promise.all([
-        db.getAllRows('appointments'),
-        db.getAllRows('patients'),
-        db.getAllRows('doctors'),
-        db.getAllRows('services'),
+        db.getAllRows<DbRecord>('appointments'),
+        db.getAllRows<DbRecord>('patients'),
+        db.getAllRows<DbRecord>('doctors'),
+        db.getAllRows<DbRecord>('services'),
       ]);
 
       const rows = apps
-        .filter((a: any) => {
+        .filter((a) => {
           return a.createdAt && a.createdAt.startsWith(today);
         })
-        .map((a: any) => {
-          const p = pt.find((x: any) => x.id === a.patientId);
-          const d = docs.find((x: any) => x.id === a.doctorId);
-          const s = svcs.find((x: any) => x.id === a.serviceId);
+        .map((a) => {
+          const p = pt.find((x) => x.id === a.patientId);
+          const d = docs.find((x) => x.id === a.doctorId);
+          const s = svcs.find((x) => x.id === a.serviceId);
           return {
             ...a,
-            patientName: p ? p.fullName : "Noma'lum",
-            patientPhone: p ? p.phone : '',
-            doctorName: d ? d.fullName : '—',
-            serviceName: s ? s.name : '—',
-          };
+            patientName: p ? (p.fullName ?? "Noma'lum") : "Noma'lum",
+            patientPhone: p ? (p.phone ?? '') : '',
+            doctorName: d ? (d.fullName ?? '—') : '—',
+            serviceName: s ? (s.name ?? '—') : '—',
+          } as PatientRow;
         })
-        .sort((a: any, b: any) => b.id - a.id);
+        .sort((a, b) => b.id - a.id);
 
       setPatients(rows);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Load patients error:', err);
       toast.error('Bemorlarni yuklashda xatolik');
     } finally {
@@ -50,7 +74,7 @@ export default function PatientsToday() {
     }
   }
 
-  function formatPrice(n: any) {
+  function formatPrice(n: number | string | null | undefined) {
     return Number(n || 0).toLocaleString('uz-UZ');
   }
 
@@ -102,7 +126,7 @@ export default function PatientsToday() {
                         <td>{p.patientPhone || '—'}</td>
                         <td>{p.doctorName || '—'}</td>
                         <td style={{ fontSize: '13px' }}>{p.serviceName || '—'}</td>
-                        <td>{formatPrice(p.amount * (p.quantity || 1))}</td>
+                        <td>{formatPrice(p.amount ? p.amount * (p.quantity || 1) : 0)}</td>
                         <td>
                           <span className={`badge badge-info`}>
                             {p.paymentType === 'cash'
@@ -115,10 +139,12 @@ export default function PatientsToday() {
                           </span>
                         </td>
                         <td>
-                          {new Date(p.createdAt).toLocaleTimeString('uz-UZ', {
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}
+                          {p.createdAt
+                            ? new Date(p.createdAt).toLocaleTimeString('uz-UZ', {
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              })
+                            : '—'}
                         </td>
                       </tr>
                     ))

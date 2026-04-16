@@ -22,8 +22,8 @@ export default function Login() {
     try {
       await authStore.login(email, password);
       toast.success(t('auth.loginSuccess') || 'Muvaffaqiyatli kirdingiz');
-    } catch (err: any) {
-      toast.error(err.message || 'Kirishda xatolik');
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Kirishda xatolik');
     } finally {
       setLoading(false);
     }
@@ -34,8 +34,8 @@ export default function Login() {
     try {
       await authStore.login(DEMO_EMAIL, DEMO_PASSWORD);
       toast.success('Demo rejimga kirdingiz!');
-    } catch (err: any) {
-      toast.error(err.message || 'Demo kirishda xatolik');
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Demo kirishda xatolik');
     } finally {
       setLoading(false);
     }

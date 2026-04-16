@@ -1,15 +1,35 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useTranslation } from '../i18n/LanguageContext';
 import { useToast } from '../components/ui/Toast';
 import { supabase } from '../lib/supabase';
-import { db } from '../utils/db';
+import { db, DbRow } from '../utils/db';
 import Modal from '../components/ui/Modal';
 import * as XLSX from 'xlsx';
 import { authStore } from '../app/store';
 
+type MedRow = DbRow & { id: number; name: string; qty: number; price: number; category?: string; unit?: string; cost_price?: number; expiry?: string; serial?: string; supplier?: string };
+type CartItem = MedRow & { cartQty: number };
+interface BarcodeState {
+  input: string; found: MedRow | null; addQty: string; price: string;
+  expiry: string; serial: string; supplier: string; paymentType: string;
+}
+interface BcLogEntry { name: string; qty: number; total: number }
+interface InpatientRow {
+  rpId: number; patientId: number; roomId?: number;
+  patientName: string; phone?: string; roomName?: string; bedIndex?: number;
+}
+interface ExcelImportRow {
+  name: string; category: string; supplier: string; expiry: string;
+  qty: number; price: number; unit: string; serial: string; paymentType: string;
+}
+interface HotMapEntry {
+  name: string; category: string; soldQty: number; revenue: number;
+  txCount: number; price: number; cost: number; profit?: number;
+}
+
 const UNITS = ['dona', 'quti', 'blister', 'ml', 'kg'];
 const EMPTY_FORM = {
-  id: null,
+  id: null as number | null,
   name: '',
   category: '',
   unit: 'dona',
@@ -20,7 +40,7 @@ const EMPTY_FORM = {
   serial: '',
   supplier: '',
 };
-const EMPTY_BC = {
+const EMPTY_BC: BarcodeState = {
   input: '',
   found: null,
   addQty: '',
@@ -40,16 +60,16 @@ export default function Pharmacy() {
   const toast = useToast();
 
   const [tab, setTab] = useState('stock'); // 'stock' | 'journal'
-  const [medicines, setMedicines] = useState<any[]>([]);
-  const [journal, setJournal] = useState<any[]>([]);
-  const [patients, setPatients] = useState<any[]>([]);
+  const [medicines, setMedicines] = useState<MedRow[]>([]);
+  const [journal, setJournal] = useState<DbRow[]>([]);
+  const [patients, setPatients] = useState<DbRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [jSearch, setJSearch] = useState('');
   const [saleSearch, setSaleSearch] = useState(''); // quick search inside sale modal
 
   // Favorites (max 10) — stored in localStorage
-  const [favorites, setFavorites] = useState<any[]>(() => {
+  const [favorites, setFavorites] = useState<(number | string)[]>(() => {
     try {
       return JSON.parse(localStorage.getItem('ph_favs') || '[]');
     } catch {
@@ -57,7 +77,7 @@ export default function Pharmacy() {
     }
   });
   function toggleFav(id: number | string) {
-    setFavorites((prev: any[]) => {
+    setFavorites((prev) => {
       const next = prev.includes(id)
         ? prev.filter((x) => x !== id)
         : prev.length >= 10
@@ -71,31 +91,31 @@ export default function Pharmacy() {
       return next;
     });
   }
-  const favMeds = favorites.map((id) => medicines.find((m) => m.id === id)).filter(Boolean);
+  const favMeds = favorites.map((id) => medicines.find((m) => m.id === id)).filter((m): m is MedRow => m !== undefined);
 
   // Modals
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
   const [showSale, setShowSale] = useState(false);
   const [saleConfirmStep, setSaleConfirmStep] = useState(0); // 0=normal, 1=confirm(F10 pressed once)
-  const [cart, setCart] = useState<any[]>([]);
+  const [cart, setCart] = useState<CartItem[]>([]);
   const [salePatientId, setSalePatientId] = useState('');
   const [salePayment, setSalePayment] = useState('cash');
-  const [inpatientPats, setInpatientPats] = useState<any[]>([]); // room_patients (active)
+  const [inpatientPats, setInpatientPats] = useState<InpatientRow[]>([]); // room_patients (active)
 
   // Prixod
   const [showChooser, setShowChooser] = useState(false);
   const [showBarcode, setShowBarcode] = useState(false);
-  const [bc, setBc] = useState<any>(EMPTY_BC);
-  const [bcLog, setBcLog] = useState<any[]>([]);
+  const [bc, setBc] = useState<BarcodeState>(EMPTY_BC);
+  const [bcLog, setBcLog] = useState<BcLogEntry[]>([]);
   const [showExcel, setShowExcel] = useState(false);
-  const [excelRows, setExcelRows] = useState<any[]>([]);
+  const [excelRows, setExcelRows] = useState<ExcelImportRow[]>([]);
 
   // Analytics
   const [showAnalytics, setShowAnalytics] = useState(false);
   const [globalMargin, setGlobalMargin] = useState(''); // % foyda barchaga
-  const [medMargins, setMedMargins] = useState<any>({}); // {id: cost_price}
-  const [marginEdit, setMarginEdit] = useState(null); // id of editing row
+  const [medMargins, setMedMargins] = useState<Record<number, number>>({}); // {id: cost_price}
+  const [marginEdit, setMarginEdit] = useState<number | null>(null); // id of editing row
 
   const [stats, setStats] = useState({ total: 0, low: 0, exp: 0, val: 0 });
   const searchRef = useRef<HTMLInputElement>(null);
@@ -111,7 +131,7 @@ export default function Pharmacy() {
   async function loadAll() {
     setLoading(true);
     try {
-      const medsRes = await db.getAllRows('pharmacy');
+      const medsRes = await db.getAllRows<MedRow>('pharmacy');
       const meds = medsRes.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
       setMedicines(meds);
 
@@ -126,8 +146,8 @@ export default function Pharmacy() {
       setJournal(jnl);
 
       // Init margins
-      const m2: any = {};
-      meds.forEach((m: any) => {
+      const m2: Record<number, number> = {};
+      meds.forEach((m) => {
         if (m.cost_price) m2[m.id] = m.cost_price;
       });
       setMedMargins(m2);
@@ -136,13 +156,13 @@ export default function Pharmacy() {
       try {
         const allRp = await db.getAllRows('room_patients');
         const activeRp = allRp.filter(
-          (rp: any) => rp.status === 'active' || rp.status === 'reserved'
+          (rp) => rp.status === 'active' || rp.status === 'reserved'
         );
         const allRooms = await db.getAllRows('rooms');
 
-        const mappedInpat = activeRp.map((rp: any) => {
-          const pt = pts.find((p: any) => p.id === rp.patientId);
-          const rm = allRooms.find((r: any) => r.id === rp.roomId);
+        const mappedInpat = activeRp.map((rp) => {
+          const pt = pts.find((p) => p.id === rp.patientId);
+          const rm = allRooms.find((r) => r.id === rp.roomId);
           return {
             rpId: rp.id,
             patientId: rp.patientId,
@@ -154,7 +174,7 @@ export default function Pharmacy() {
           };
         });
         setInpatientPats(
-          mappedInpat.sort((a: any, b: any) => a.patientName.localeCompare(b.patientName))
+          mappedInpat.sort((a, b) => a.patientName.localeCompare(b.patientName))
         );
       } catch {
         setInpatientPats([]);
@@ -164,15 +184,15 @@ export default function Pharmacy() {
         low = 0,
         exp = 0,
         val = 0;
-      meds.forEach((m: any) => {
+      meds.forEach((m) => {
         total++;
         if (m.qty <= 10) low++;
         if (m.expiry && m.expiry < today) exp++;
         val += (m.qty || 0) * (m.price || 0);
       });
       setStats({ total, low, exp, val });
-    } catch (e: any) {
-      toast.error(e.message);
+    } catch (e: unknown) {
+      toast.error((e as Error).message);
     }
     setLoading(false);
   }
@@ -208,9 +228,9 @@ export default function Pharmacy() {
       toast.success('Saqlandi!');
       setShowForm(false);
       loadAll();
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error('Save Form Error:', e);
-      toast.error(e.message);
+      toast.error((e as Error).message);
     }
   }
 
@@ -223,38 +243,38 @@ export default function Pharmacy() {
   }
 
   // ─── CART
-  function addToCart(m: any) {
+  function addToCart(m: MedRow) {
     if (m.qty < 1) {
       toast.error('Stokda mavjud emas!');
       return;
     }
-    setCart((prev: any[]) => {
-      const ex = prev.find((c: any) => c.id === m.id);
+    setCart((prev) => {
+      const ex = prev.find((c) => c.id === m.id);
       if (ex) {
         if (ex.cartQty >= m.qty) {
           toast.error('Stok yetarli emas!');
           return prev;
         }
-        return prev.map((c: any) => (c.id === m.id ? { ...c, cartQty: c.cartQty + 1 } : c));
+        return prev.map((c) => (c.id === m.id ? { ...c, cartQty: c.cartQty + 1 } : c));
       }
       return [...prev, { ...m, cartQty: 1 }];
     });
   }
   function updCart(id: number | string, d: number) {
-    setCart((prev: any[]) =>
+    setCart((prev) =>
       prev
-        .map((c: any) => {
+        .map((c): CartItem | null => {
           if (c.id !== id) return c;
           const nq = c.cartQty + d;
           if (nq < 1) return null;
-          const med = medicines.find((m: any) => m.id === id);
+          const med = medicines.find((m) => m.id === id);
           if (nq > (med?.qty || 0)) {
             toast.error('Stok yetarli emas!');
             return c;
           }
           return { ...c, cartQty: nq };
         })
-        .filter(Boolean)
+        .filter((item): item is CartItem => item !== null)
     );
   }
   const cartTotal = cart.reduce((s, c) => s + c.cartQty * c.price, 0);
@@ -262,12 +282,12 @@ export default function Pharmacy() {
   // ─── Print receipt
   function printReceipt() {
     const inpat = inpatientPats.find(
-      (rp: any) =>
+      (rp) =>
         String(rp.rpId) === String(salePatientId) || String(rp.patientId) === String(salePatientId)
     );
     const patName =
       inpat?.patientName ||
-      patients.find((p: any) => String(p.id) === String(salePatientId))?.fullName ||
+      patients.find((p) => String(p.id) === String(salePatientId))?.fullName ||
       'Oddiy savdo';
     const payLabels = {
       cash: 'Naqd',
@@ -289,7 +309,7 @@ export default function Pharmacy() {
       ${cart.map((c) => `<div class="row"><span>${c.name} x${c.cartQty}</span><span>${Number(c.cartQty * c.price).toLocaleString()} so'm</span></div>`).join('')}
       <hr/>
       <div class="row total"><span>JAMI:</span><span>${Number(cartTotal).toLocaleString()} so'm</span></div>
-      <div class="row"><span>To'lov:</span><span>${(payLabels as any)[salePayment] || salePayment}</span></div>
+      <div class="row"><span>To'lov:</span><span>${(payLabels as Record<string, string>)[salePayment] || salePayment}</span></div>
       <div class="row"><span>Bemor:</span><span>${patName}</span></div>
       <hr/><div style="text-align:center;font-size:11px">Sog'lom keling! 😊</div>
     </body></html>`);
@@ -334,12 +354,12 @@ export default function Pharmacy() {
     try {
       // Find inpatient record if selected
       const inpat = inpatientPats.find(
-        (rp: any) =>
+        (rp) =>
           String(rp.rpId) === String(salePatientId) ||
           String(rp.patientId) === String(salePatientId)
       );
       const patient = patients.find(
-        (p: any) => String(p.id) === String(inpat?.patientId || salePatientId)
+        (p) => String(p.id) === String(inpat?.patientId || salePatientId)
       );
       const patName = inpat?.patientName || patient?.fullName || 'Oddiy savdo';
       const isDebt = salePayment === 'debt';
@@ -348,7 +368,7 @@ export default function Pharmacy() {
       const clinic_id = authStore.getState().clinicId;
 
       for (const item of cart) {
-        const med = medicines.find((m: any) => m.id === item.id);
+        const med = medicines.find((m) => m.id === item.id);
         const newQty = (med?.qty || 0) - item.cartQty;
 
         const updRes = await db.update('pharmacy', item.id, { qty: newQty });
@@ -427,9 +447,9 @@ export default function Pharmacy() {
       setSalePayment('cash');
       setShowSale(false);
       loadAll();
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error('Confirm Sale Error:', e);
-      toast.error('Sotuvda xatolik: ' + e.message);
+      toast.error('Sotuvda xatolik: ' + (e as Error).message);
     }
   }
 
@@ -446,12 +466,12 @@ export default function Pharmacy() {
     const q = bc.input.trim().toLowerCase();
     if (!q) return;
     const found = medicines.find(
-      (m: any) => m.name.toLowerCase().includes(q) || String(m.id) === q
+      (m) => m.name.toLowerCase().includes(q) || String(m.id) === q
     );
-    setBc((prev: any) => ({
+    setBc((prev) => ({
       ...prev,
       found: found || {
-        id: null,
+        id: 0,
         name: bc.input.trim(),
         qty: 0,
         unit: 'dona',
@@ -460,8 +480,8 @@ export default function Pharmacy() {
         serial: '',
         supplier: '',
       },
-      price: found?.price || '',
-      expiry: found?.expiry || '',
+      price: String(found?.price || ''),
+      expiry: String(found?.expiry || ''),
     }));
   }
 
@@ -470,44 +490,45 @@ export default function Pharmacy() {
       toast.error('Miqdor kiriting!');
       return;
     }
+    const bcFound = bc.found;
     const addQty = +bc.addQty;
     const clinic_id = authStore.getState().clinicId;
 
     try {
-      if (bc.found.id) {
-        const newQty = bc.found.qty + addQty;
+      if (bcFound.id) {
+        const newQty = bcFound.qty + addQty;
         const data = {
           qty: newQty,
-          price: bc.price ? +bc.price : bc.found.price,
-          expiry: bc.expiry || bc.found.expiry,
-          serial: bc.serial || bc.found.serial || null,
-          supplier: bc.supplier || bc.found.supplier || null,
+          price: bc.price ? +bc.price : bcFound.price,
+          expiry: bc.expiry || bcFound.expiry,
+          serial: bc.serial || bcFound.serial || null,
+          supplier: bc.supplier || bcFound.supplier || null,
         };
 
         const journalData = {
           clinic_id,
-          name: bc.found.name,
-          category: bc.found.category,
-          unit: bc.found.unit,
+          name: bcFound.name,
+          category: bcFound.category,
+          unit: bcFound.unit,
           qty_in: addQty,
           qty_out: 0,
           remaining: newQty,
-          price: bc.price ? +bc.price : bc.found.price,
+          price: bc.price ? +bc.price : bcFound.price,
           serial: bc.serial || null,
-          expiry: bc.expiry || bc.found.expiry || null,
+          expiry: bc.expiry || bcFound.expiry || null,
           supplier: bc.supplier || null,
           payment_type: bc.paymentType,
           entry_type: 'kirim',
           note: '',
         };
 
-        const updRes = await db.update('pharmacy', bc.found.id, data);
+        const updRes = await db.update('pharmacy', bcFound.id, data);
         if (!updRes.success) throw new Error(updRes.error as string);
         const jrRes = await db.insert('pharmacy_journal', journalData);
         if (!jrRes.success) throw new Error(jrRes.error as string);
 
-        setBcLog((p: any[]) => [{ name: bc.found.name, qty: addQty, total: newQty }, ...p]);
-        toast.success(`✅ ${bc.found.name}: +${addQty}`);
+        setBcLog((p) => [{ name: bcFound.name, qty: addQty, total: newQty }, ...p]);
+        toast.success(`✅ ${bcFound.name}: +${addQty}`);
       } else {
         if (!bc.price || +bc.price <= 0) {
           toast.error('Yangi dori uchun narx kiriting!');
@@ -516,7 +537,7 @@ export default function Pharmacy() {
 
         const data = {
           clinic_id,
-          name: bc.found.name,
+          name: bcFound.name,
           category: '',
           unit: 'dona',
           qty: addQty,
@@ -528,7 +549,7 @@ export default function Pharmacy() {
 
         const journalData = {
           clinic_id,
-          name: bc.found.name,
+          name: bcFound.name,
           category: '',
           unit: 'dona',
           qty_in: addQty,
@@ -548,19 +569,19 @@ export default function Pharmacy() {
         const jrRes = await db.insert('pharmacy_journal', journalData);
         if (!jrRes.success) throw new Error(jrRes.error as string);
 
-        setBcLog((p: any[]) => [{ name: bc.found.name, qty: addQty, total: addQty }, ...p]);
-        toast.success(`✅ Yangi dori qo'shildi: ${bc.found.name}`);
+        setBcLog((p) => [{ name: bcFound.name, qty: addQty, total: addQty }, ...p]);
+        toast.success(`✅ Yangi dori qo'shildi: ${bcFound.name}`);
       }
-      setBc((prev: any) => ({
+      setBc((prev) => ({
         ...EMPTY_BC,
         paymentType: prev.paymentType,
         supplier: prev.supplier,
       }));
       loadAll();
       setTimeout(() => bcRef.current?.focus(), 50);
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error('Save Barcode Item Error:', e);
-      toast.error(e.message);
+      toast.error((e as Error).message);
     }
   }
 
@@ -587,7 +608,7 @@ export default function Pharmacy() {
         let headerIdx = -1;
 
         for (let i = 0; i < json.length; i++) {
-          const rowStr = ((json[i] as any[]) || []).join('|').toLowerCase();
+          const rowStr = ((json[i] as unknown[]) || []).join('|').toLowerCase();
           if (rowStr.includes('препарат') || rowStr.includes('nomi')) {
             headerIdx = i;
             break;
@@ -599,14 +620,14 @@ export default function Pharmacy() {
           return;
         }
 
-        const headers = (json[headerIdx] as any[]).map((h) =>
+        const headers = (json[headerIdx] as unknown[]).map((h) =>
           String(h || '')
             .trim()
             .toLowerCase()
         );
 
         for (let i = headerIdx + 1; i < json.length; i++) {
-          const row = json[i] as any[];
+          const row = json[i] as unknown[];
           if (!row || row.length === 0) continue;
 
           const filled = row.filter(
@@ -618,7 +639,7 @@ export default function Pharmacy() {
             continue;
           }
 
-          const obj: any = {};
+          const obj: Record<string, unknown> = {};
           headers.forEach((h, idx) => {
             if (h) obj[h] = row[idx];
           });
@@ -626,38 +647,41 @@ export default function Pharmacy() {
           const name = String(obj['препарат'] || obj['nomi'] || obj['name'] || '').trim();
           if (!name || name === 'Итого') continue;
 
-          let exp = obj['срок годности'] || obj['muddat'] || obj['expiry'] || '';
-          if (typeof exp === 'number') {
-            const d = XLSX.SSF.parse_date_code(exp);
+          const rawExp = obj['срок годности'] || obj['muddat'] || obj['expiry'] || '';
+          let exp: string;
+          if (typeof rawExp === 'number') {
+            const d = XLSX.SSF.parse_date_code(rawExp);
             exp = `${d.y}-${String(d.m).padStart(2, '0')}-${String(d.d).padStart(2, '0')}`;
+          } else {
+            exp = String(rawExp);
           }
 
           rows.push({
             name,
-            category: currentCategory || obj['категория'] || obj['kategoriya'] || '',
+            category: String(currentCategory || obj['категория'] || obj['kategoriya'] || ''),
             supplier: String(obj['производитель'] || obj['firma'] || obj['supplier'] || '').trim(),
             expiry: exp,
             qty:
-              parseFloat(obj['заказ']) || parseFloat(obj['miqdor']) || parseFloat(obj['qty']) || 0,
+              parseFloat(String(obj['заказ'] || '')) || parseFloat(String(obj['miqdor'] || '')) || parseFloat(String(obj['qty'] || '')) || 0,
             price:
-              parseFloat(obj['цена']) || parseFloat(obj['narx']) || parseFloat(obj['price']) || 0,
-            unit: obj['birlik'] || 'dona',
-            serial: obj['серия'] || obj['seria'] || '',
-            paymentType: obj['tolov'] || 'naqd',
+              parseFloat(String(obj['цена'] || '')) || parseFloat(String(obj['narx'] || '')) || parseFloat(String(obj['price'] || '')) || 0,
+            unit: String(obj['birlik'] || 'dona'),
+            serial: String(obj['серия'] || obj['seria'] || ''),
+            paymentType: String(obj['tolov'] || 'naqd'),
           });
         }
         setExcelRows(rows);
-      } catch (err: any) {
-        toast.error("Faylni o'qishda xato: " + err.message);
+      } catch (err: unknown) {
+        toast.error("Faylni o'qishda xato: " + (err as Error).message);
       }
     };
     reader.readAsArrayBuffer(file);
     e.target.value = '';
   }
 
-  function updExcelRow(i: number, f: string, v: any) {
-    setExcelRows((p: any[]) =>
-      p.map((r: any, idx) => (idx === i ? { ...r, [f]: f === 'qty' || f === 'price' ? +v : v } : r))
+  function updExcelRow(i: number, f: string, v: string | number) {
+    setExcelRows((p) =>
+      p.map((r, idx) => (idx === i ? { ...r, [f]: f === 'qty' || f === 'price' ? +v : v } : r))
     );
   }
 
@@ -673,7 +697,7 @@ export default function Pharmacy() {
         continue;
       }
       try {
-        const ex = medicines.find((m: any) => m.name.toLowerCase() === row.name.toLowerCase());
+        const ex = medicines.find((m) => m.name.toLowerCase() === row.name.toLowerCase());
         const newQty = ex ? ex.qty + row.qty : row.qty;
 
         const mainData = {
@@ -716,7 +740,7 @@ export default function Pharmacy() {
         if (!jrRes.success) throw new Error(jrRes.error as string);
 
         ok++;
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error('Import Row Error:', row, err);
         fail++;
       }
@@ -746,15 +770,15 @@ export default function Pharmacy() {
       return;
     }
     const pct = +globalMargin / 100;
-    const upd: any = {};
-    medicines.forEach((m: any) => {
+    const upd: Record<number, number> = {};
+    medicines.forEach((m) => {
       upd[m.id] = +(m.price / (1 + pct)).toFixed(0);
     });
     setMedMargins(upd);
     toast.success(`✅ Barchaga ${globalMargin}% foyda belgilandi`);
   }
-  async function saveMargin(m: any) {
-    const cp = (medMargins as any)[m.id];
+  async function saveMargin(m: MedRow) {
+    const cp = medMargins[m.id];
     if (!cp || isNaN(+cp)) return;
     try {
       const res = await db.update('pharmacy', m.id, { cost_price: +cp });
@@ -762,28 +786,28 @@ export default function Pharmacy() {
       toast.success(`${m.name} kirim narxi saqlandi`);
       setMarginEdit(null);
       loadAll();
-    } catch (e: any) {
-      toast.error(e.message);
+    } catch (e: unknown) {
+      toast.error((e as Error).message);
     }
   }
   function catStats() {
-    const cats: any = {};
-    medicines.forEach((m: any) => {
+    const cats: Record<string, { count: number; val: number; sold: number; income: number; profit: number }> = {};
+    medicines.forEach((m) => {
       const cat = m.category || 'Boshqa';
       if (!cats[cat]) cats[cat] = { count: 0, val: 0, sold: 0, income: 0, profit: 0 };
       cats[cat].count++;
       cats[cat].val += (m.qty || 0) * (m.price || 0);
-      const cp = (medMargins as any)[m.id] || m.cost_price || 0;
-      const jEntries = journal.filter((j: any) => j.name === m.name);
+      const cp = medMargins[m.id] || m.cost_price || 0;
+      const jEntries = journal.filter((j) => j.name === m.name);
       jEntries
-        .filter((j: any) => j.entry_type === 'chiqim')
-        .forEach((j: any) => {
+        .filter((j) => j.entry_type === 'chiqim')
+        .forEach((j) => {
           cats[cat].sold += j.qty_out || 0;
           cats[cat].income += (j.qty_out || 0) * (j.price || 0);
           cats[cat].profit += (j.qty_out || 0) * ((j.price || 0) - cp);
         });
     });
-    return Object.entries(cats).map(([cat, d]) => ({ cat, ...(d as any) }));
+    return Object.entries(cats).map(([cat, d]) => ({ cat, ...d }));
   }
   const totalKirim = journal
     .filter((j) => j.entry_type === 'kirim')
@@ -791,13 +815,13 @@ export default function Pharmacy() {
   const totalChiqim = journal
     .filter((j) => j.entry_type === 'chiqim')
     .reduce((s, j) => s + (j.qty_out || 0) * (j.price || 0), 0);
-  const totalProfit = medicines.reduce((s, m: any) => {
-    const cp = (medMargins as any)[m.id] || m.cost_price || 0;
+  const totalProfit = medicines.reduce((s, m) => {
+    const cp = medMargins[m.id] || m.cost_price || 0;
     return (
       s +
       journal
-        .filter((j: any) => j.name === m.name && j.entry_type === 'chiqim')
-        .reduce((ss, j: any) => ss + (j.qty_out || 0) * ((j.price || 0) - cp), 0)
+        .filter((j) => j.name === m.name && j.entry_type === 'chiqim')
+        .reduce((ss, j) => ss + (j.qty_out || 0) * ((j.price || 0) - cp), 0)
     );
   }, 0);
 
@@ -821,26 +845,26 @@ export default function Pharmacy() {
   );
 
   // ─── Stat modal
-  const [showStatModal, setShowStatModal] = useState<any>(null);
+  const [showStatModal, setShowStatModal] = useState<string | null>(null);
   const [showHotMap, setShowHotMap] = useState(false);
   const soon = new Date();
   soon.setDate(soon.getDate() + 30);
   const soonStr = soon.toISOString().split('T')[0];
-  const statLists = {
+  const statLists: Record<string, MedRow[]> = {
     all: medicines,
     low: medicines.filter((m) => m.qty <= 10),
     expiry: medicines.filter((m) => m.expiry && m.expiry <= soonStr),
   };
-  const statTitles = {
+  const statTitles: Record<string, string> = {
     all: "💊 Barcha dorilar ro'yxati",
     low: '⚠️ Kam qolgan dorilar (≤10)',
     expiry: "🗓️ Muddati yaqin / O'tgan dorilar",
   };
 
   // Hotmap data: per-medicine sold qty & revenue from journal
-  const hotMapData: any[] = React.useMemo(() => {
-    const map: any = {};
-    medicines.forEach((m: any) => {
+  const hotMapData: HotMapEntry[] = React.useMemo(() => {
+    const map: Record<string, HotMapEntry> = {};
+    medicines.forEach((m) => {
       map[m.name] = {
         name: m.name,
         category: m.category || 'Boshqa',
@@ -848,12 +872,12 @@ export default function Pharmacy() {
         revenue: 0,
         txCount: 0,
         price: m.price,
-        cost: (medMargins as any)[m.id] || m.cost_price || 0,
+        cost: medMargins[m.id] || m.cost_price || 0,
       };
     });
     journal
-      .filter((j: any) => j.entry_type === 'chiqim')
-      .forEach((j: any) => {
+      .filter((j) => j.entry_type === 'chiqim')
+      .forEach((j) => {
         if (!map[j.name])
           map[j.name] = {
             name: j.name,
@@ -869,13 +893,13 @@ export default function Pharmacy() {
         map[j.name].txCount += 1;
       });
     return Object.values(map)
-      .filter((d: any) => d.soldQty > 0)
-      .sort((a: any, b: any) => b.soldQty - a.soldQty);
+      .filter((d) => d.soldQty > 0)
+      .sort((a, b) => b.soldQty - a.soldQty);
   }, [medicines, journal, medMargins]);
   const maxSold = hotMapData[0]?.soldQty || 1;
   const maxRevenue = hotMapData[0]?.revenue || 1;
   const hotTop10 = hotMapData.slice(0, 10);
-  const hotBot10 = [...hotMapData].sort((a: any, b: any) => a.soldQty - b.soldQty).slice(0, 10);
+  const hotBot10 = [...hotMapData].sort((a, b) => a.soldQty - b.soldQty).slice(0, 10);
 
   // ════════════════ RENDER ════════════════════════════════════════════════════
   return (
@@ -1025,7 +1049,7 @@ export default function Pharmacy() {
         <div className="stats-grid" style={{ marginBottom: 12 }}>
           <div
             className="card glass-card stat-card"
-            style={{ '--card-accent': 'var(--accent-primary)', cursor: 'pointer' } as any}
+            style={{ '--card-accent': 'var(--accent-primary)', cursor: 'pointer' } as React.CSSProperties}
             onClick={() => setShowStatModal('all')}
           >
             <div className="stat-icon">💊</div>
@@ -1036,7 +1060,7 @@ export default function Pharmacy() {
           </div>
           <div
             className="card glass-card stat-card"
-            style={{ '--card-accent': 'var(--accent-warning)', cursor: 'pointer' } as any}
+            style={{ '--card-accent': 'var(--accent-warning)', cursor: 'pointer' } as React.CSSProperties}
             onClick={() => setShowStatModal('low')}
           >
             <div className="stat-icon">⚠️</div>
@@ -1049,7 +1073,7 @@ export default function Pharmacy() {
           </div>
           <div
             className="card glass-card stat-card"
-            style={{ '--card-accent': 'var(--accent-danger)', cursor: 'pointer' } as any}
+            style={{ '--card-accent': 'var(--accent-danger)', cursor: 'pointer' } as React.CSSProperties}
             onClick={() => setShowStatModal('expiry')}
           >
             <div className="stat-icon">🗓️</div>
@@ -1062,7 +1086,7 @@ export default function Pharmacy() {
           </div>
           <div
             className="card glass-card stat-card"
-            style={{ '--card-accent': 'var(--accent-success)', cursor: 'pointer' } as any}
+            style={{ '--card-accent': 'var(--accent-success)', cursor: 'pointer' } as React.CSSProperties}
             onClick={() => setShowAnalytics(true)}
           >
             <div className="stat-icon">💰</div>
@@ -1226,7 +1250,7 @@ export default function Pharmacy() {
                         </tr>
                       )}
                       {filtered.map((m) => {
-                        const isExp = m.expiry && m.expiry < today;
+                        const isExp = !!(m.expiry && m.expiry < today);
                         return (
                           <tr key={m.id} style={{ opacity: isExp ? 0.65 : 1 }}>
                             <td>
@@ -1255,7 +1279,7 @@ export default function Pharmacy() {
                                 style={{
                                   fontWeight: 800,
                                   fontSize: 16,
-                                  color: stockColor(m.qty, m.expiry),
+                                  color: stockColor(m.qty, m.expiry ?? null),
                                 }}
                               >
                                 {m.qty}
@@ -1323,7 +1347,14 @@ export default function Pharmacy() {
                                   className="btn btn-sm btn-ghost"
                                   onClick={() => {
                                     setForm({
-                                      ...m,
+                                      id: m.id,
+                                      name: m.name || '',
+                                      category: m.category || '',
+                                      unit: m.unit || 'dona',
+                                      qty: String(m.qty || ''),
+                                      price: String(m.price || ''),
+                                      cost_price: String(m.cost_price || ''),
+                                      expiry: m.expiry || '',
                                       serial: m.serial || '',
                                       supplier: m.supplier || '',
                                     });
@@ -1591,7 +1622,7 @@ export default function Pharmacy() {
               style={{ flex: 1, fontSize: 15 }}
               placeholder="🔍 Dori nomi yoki kod → Enter"
               value={bc.input}
-              onChange={(e) => setBc((p: any) => ({ ...p, input: e.target.value }))}
+              onChange={(e) => setBc((p) => ({ ...p, input: e.target.value }))}
               onKeyDown={(e) => e.key === 'Enter' && bcSearch()}
             />
             <button className="btn btn-primary" onClick={bcSearch}>
@@ -1634,7 +1665,7 @@ export default function Pharmacy() {
                     style={{ fontWeight: 800, fontSize: 17, borderColor: 'var(--accent-primary)' }}
                     min="1"
                     value={bc.addQty}
-                    onChange={(e) => setBc((p: any) => ({ ...p, addQty: e.target.value }))}
+                    onChange={(e) => setBc((p) => ({ ...p, addQty: e.target.value }))}
                     onKeyDown={(e) => e.key === 'Enter' && saveBcItem()}
                     autoFocus
                     placeholder="100"
@@ -1647,8 +1678,8 @@ export default function Pharmacy() {
                     className="form-input"
                     min="0"
                     value={bc.price}
-                    onChange={(e) => setBc((p: any) => ({ ...p, price: e.target.value }))}
-                    placeholder={bc.found.price || ''}
+                    onChange={(e) => setBc((p) => ({ ...p, price: e.target.value }))}
+                    placeholder={String(bc.found?.price ?? '')}
                   />
                 </div>
                 <div className="form-group">
@@ -1657,7 +1688,7 @@ export default function Pharmacy() {
                     type="date"
                     className="form-input"
                     value={bc.expiry}
-                    onChange={(e) => setBc((p: any) => ({ ...p, expiry: e.target.value }))}
+                    onChange={(e) => setBc((p) => ({ ...p, expiry: e.target.value }))}
                   />
                 </div>
                 <div className="form-group">
@@ -1667,7 +1698,7 @@ export default function Pharmacy() {
                     className="form-input"
                     placeholder="SER-001"
                     value={bc.serial}
-                    onChange={(e) => setBc((p: any) => ({ ...p, serial: e.target.value }))}
+                    onChange={(e) => setBc((p) => ({ ...p, serial: e.target.value }))}
                   />
                 </div>
                 <div className="form-group">
@@ -1677,7 +1708,7 @@ export default function Pharmacy() {
                     className="form-input"
                     placeholder="Roche, Pfizer..."
                     value={bc.supplier}
-                    onChange={(e) => setBc((p: any) => ({ ...p, supplier: e.target.value }))}
+                    onChange={(e) => setBc((p) => ({ ...p, supplier: e.target.value }))}
                   />
                 </div>
                 <div className="form-group">
@@ -1685,7 +1716,7 @@ export default function Pharmacy() {
                   <select
                     className="form-input"
                     value={bc.paymentType}
-                    onChange={(e) => setBc((p: any) => ({ ...p, paymentType: e.target.value }))}
+                    onChange={(e) => setBc((p) => ({ ...p, paymentType: e.target.value }))}
                   >
                     <option value="naqd">💵 Naqd</option>
                     <option value="perech">🔄 Perech (bank)</option>
@@ -1947,7 +1978,7 @@ export default function Pharmacy() {
                   <b>
                     {
                       excelRows.filter((r) =>
-                        medicines.some((m: any) => m.name.toLowerCase() === r.name.toLowerCase())
+                        medicines.some((m) => m.name.toLowerCase() === r.name.toLowerCase())
                       ).length
                     }
                   </b>
@@ -1958,7 +1989,7 @@ export default function Pharmacy() {
                     {
                       excelRows.filter(
                         (r) =>
-                          !medicines.some((m: any) => m.name.toLowerCase() === r.name.toLowerCase())
+                          !medicines.some((m) => m.name.toLowerCase() === r.name.toLowerCase())
                       ).length
                     }
                   </b>
@@ -2195,7 +2226,7 @@ export default function Pharmacy() {
                           )}
                         </td>
                         <td style={{ textAlign: 'center' }}>
-                          <span style={{ fontWeight: 800, color: stockColor(m.qty, m.expiry) }}>
+                          <span style={{ fontWeight: 800, color: stockColor(m.qty, m.expiry ?? null) }}>
                             {m.qty}
                           </span>
                           <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 3 }}>
@@ -2543,14 +2574,14 @@ export default function Pharmacy() {
       <Modal
         isOpen={!!showStatModal}
         onClose={() => setShowStatModal(null)}
-        title={showStatModal ? (statTitles as any)[showStatModal] : ''}
+        title={showStatModal ? statTitles[showStatModal] : ''}
         width={820}
       >
         {showStatModal &&
           (() => {
-            const list = (statLists as any)[showStatModal];
+            const list = statLists[showStatModal];
             const totalVal = list.reduce(
-              (s: number, m: any) => s + (m.qty || 0) * (m.price || 0),
+              (s: number, m: MedRow) => s + (m.qty || 0) * (m.price || 0),
               0
             );
             return (
@@ -2582,8 +2613,8 @@ export default function Pharmacy() {
                           </td>
                         </tr>
                       )}
-                      {list.map((m: any, idx: number) => {
-                        const isExp = m.expiry && m.expiry < today;
+                      {list.map((m: MedRow, idx: number) => {
+                        const isExp = !!(m.expiry && m.expiry < today);
                         const isSoon = m.expiry && m.expiry >= today && m.expiry <= soonStr;
                         const rowVal = (m.qty || 0) * (m.price || 0);
                         return (
@@ -2637,7 +2668,7 @@ export default function Pharmacy() {
                                 style={{
                                   fontWeight: 800,
                                   fontSize: 15,
-                                  color: stockColor(m.qty, m.expiry),
+                                  color: stockColor(m.qty, m.expiry ?? null),
                                 }}
                               >
                                 {m.qty}
@@ -2713,11 +2744,11 @@ export default function Pharmacy() {
                       <>
                         <span style={{ fontSize: 13, color: 'var(--accent-danger)' }}>
                           ⛔ Muddati o'tgan:{' '}
-                          <b>{list.filter((m: any) => m.expiry < today).length}</b>
+                          <b>{list.filter((m: MedRow) => m.expiry && m.expiry < today).length}</b>
                         </span>
                         <span style={{ fontSize: 13, color: 'var(--accent-warning)' }}>
                           ⚠️ 30 kun ichida tugaydi:{' '}
-                          <b>{list.filter((m: any) => m.expiry >= today).length}</b>
+                          <b>{list.filter((m: MedRow) => m.expiry && m.expiry >= today).length}</b>
                         </span>
                       </>
                     )}
@@ -2891,7 +2922,7 @@ export default function Pharmacy() {
                             style={{ width: 90, padding: '3px 6px', fontSize: 12 }}
                             value={medMargins[m.id] || ''}
                             onChange={(e) =>
-                              setMedMargins((p: any) => ({ ...p, [m.id]: e.target.value }))
+                              setMedMargins((p) => ({ ...p, [m.id]: Number(e.target.value) }))
                             }
                             onKeyDown={(e) => e.key === 'Enter' && saveMargin(m)}
                           />
@@ -3028,25 +3059,22 @@ export default function Pharmacy() {
                 emoji: '⚡',
                 label: 'Eng tez sotilgan',
                 val: hotTop10[0]
-                  ? hotTop10.reduce((a: any, b: any) => (a.txCount > b.txCount ? a : b), {
-                      txCount: 0,
-                    } as any).name
+                  ? hotTop10.reduce((a, b) => (a.txCount > b.txCount ? a : b)).name
                   : '—',
-                sub: `${hotTop10.reduce((a: any, b: any) => (a.txCount > b.txCount ? a : b), { txCount: 0 } as any).txCount || 0} marta`,
+                sub: `${hotTop10[0] ? hotTop10.reduce((a, b) => (a.txCount > b.txCount ? a : b)).txCount : 0} marta`,
                 grad: 'linear-gradient(135deg,#f59e0b,#eab308)',
               },
               {
                 emoji: '💰',
                 label: "Eng ko'p daromad",
-                val: hotTop10.reduce((a: any, b: any) => (a.revenue > b.revenue ? a : b), {
-                  revenue: 0,
-                  name: '—',
-                } as any).name,
+                val: hotTop10[0]
+                  ? hotTop10.reduce((a, b) => (a.revenue > b.revenue ? a : b)).name
+                  : '—',
                 sub:
                   fmt(
-                    hotTop10.reduce((a: any, b: any) => (a.revenue > b.revenue ? a : b), {
-                      revenue: 0,
-                    } as any).revenue || 0
+                    hotTop10[0]
+                      ? hotTop10.reduce((a, b) => (a.revenue > b.revenue ? a : b)).revenue
+                      : 0
                   ) + " so'm",
                 grad: 'linear-gradient(135deg,#10b981,#059669)',
               },
@@ -3332,14 +3360,14 @@ export default function Pharmacy() {
               </div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                 {[...hotMapData]
-                  .sort((a: any, b: any) => b.revenue - a.revenue)
-                  .map((d: any) => {
+                  .sort((a, b) => b.revenue - a.revenue)
+                  .map((d) => {
                     const intensity = d.revenue / (maxRevenue || 1);
                     const r = Math.round(255 * intensity);
                     const g = Math.round(60 * intensity);
                     const revSharePct = (
                       (d.revenue /
-                        (hotMapData.reduce((s: number, x: any) => s + x.revenue, 0) || 1)) *
+                        (hotMapData.reduce((s: number, x) => s + x.revenue, 0) || 1)) *
                       100
                     ).toFixed(1);
                     return (
@@ -3357,8 +3385,8 @@ export default function Pharmacy() {
                           whiteSpace: 'nowrap',
                           transition: 'transform 0.15s',
                         }}
-                        onMouseEnter={(e: any) => (e.currentTarget.style.transform = 'scale(1.05)')}
-                        onMouseLeave={(e: any) => (e.currentTarget.style.transform = '')}
+                        onMouseEnter={(e) => (e.currentTarget.style.transform = 'scale(1.05)')}
+                        onMouseLeave={(e) => (e.currentTarget.style.transform = '')}
                       >
                         {d.name.length > 18 ? d.name.slice(0, 16) + '…' : d.name}
                         <span style={{ marginLeft: 5, opacity: 0.8 }}>{revSharePct}%</span>

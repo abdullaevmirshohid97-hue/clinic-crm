@@ -5,7 +5,8 @@ import { authStore } from '../app/store';
  * Generic row returned from Supabase — values are dynamic JSON so typed as `any`.
  * Callers that know the shape can use the typed generics: db.getAllRows<MyType>(table).
  */
-type DbRow = Record<string, any>;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type DbRow = Record<string, any>;
 
 type DbResult<T> = { success: true; data: T } | { success: false; error: string };
 type DbSimpleResult = { success: true } | { success: false; error: string };

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from '../../i18n/LanguageContext';
 import { useToast } from '../../components/ui/Toast';
-import { analyticsApi, roomApi, queueApi } from '../../services/clinic.api';
+import { analyticsApi } from '../../services/clinic.api';
 
 export default function Dashboard({ onNavigate }: { onNavigate?: (page: string) => void }) {
   const { t } = useTranslation();

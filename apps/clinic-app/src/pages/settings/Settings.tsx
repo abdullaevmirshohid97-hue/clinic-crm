@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from '../../i18n/LanguageContext';
 import { useToast } from '../../components/ui/Toast';
 import Modal from '../../components/ui/Modal';
@@ -59,8 +59,7 @@ export default function Settings() {
 
   const [printers, setPrinters] = useState<PrinterInfo[]>([]);
   const [selectedPrinter, setSelectedPrinter] = useState('');
-  const [printersLoading, setPrintersLoading] = useState(false);
-  const [serviceViewMode, setServiceViewMode] = useState('list');
+  const [, setPrintersLoading] = useState(false);
   const [qrPath, setQrPath] = useState('');
   const [qrFile, setQrFile] = useState<File | null>(null);
   const [qrPreview, setQrPreview] = useState('');
@@ -85,7 +84,7 @@ export default function Settings() {
     category: '',
     duration: '',
   });
-  const [sidebarEditMode, setSidebarEditMode] = useState(false);
+  const [, setSidebarEditMode] = useState(false);
   const [adminPin, setAdminPin] = useState('');
 
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);

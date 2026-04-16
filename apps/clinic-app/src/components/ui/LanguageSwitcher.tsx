@@ -2,7 +2,7 @@ import React from 'react';
 import { useTranslation } from '../../i18n/LanguageContext';
 
 export default function LanguageSwitcher() {
-  const { lang, setLang, t } = useTranslation();
+  const { lang, setLang } = useTranslation();
   const toggle = () => setLang(lang === 'uz' ? 'en' : 'uz');
   return (
     <button
