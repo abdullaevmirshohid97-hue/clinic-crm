@@ -13,7 +13,8 @@
     "dev": "npm run dev -w apps/clinic-app",
     "test": "npm run test -w apps/clinic-app",
     "build": "npm run build --workspaces --if-present",
-    "install:all": "npm install"
+    "install:all": "npm install",
+    "migrate": "bash scripts/migrate.sh"
   },
   "devDependencies": {
     "typescript": "^5.3.3",
