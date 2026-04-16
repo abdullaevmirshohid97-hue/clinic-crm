@@ -4,6 +4,7 @@ import { useToast } from '../../components/ui/Toast';
 import Modal from '../../components/ui/Modal';
 import { db } from '../../utils/db';
 import { printReceipt } from '../../utils/printer';
+import type { ReceptionHandle, ClinicService, ClinicDoctor, SelectedServiceItem, ExistingPatient, ShiftRecord, ShiftSummary } from '../../types/clinic';
 
 const EMPTY_PATIENT = { fullName: '', phone: '', birthDate: '', gender: 'male', address: '', source: '' };
 
@@ -11,31 +12,31 @@ const PATIENT_SOURCES = [
   'none', 'instagram', 'telegram', 'recommendation', 'banner', 'google', 'website', 'tv', 'repeat', 'other'
 ];
 
-const Reception = forwardRef<any, any>(function Reception(props, ref) {
+const Reception = forwardRef<ReceptionHandle, Record<string, never>>(function Reception(_props, ref) {
   const { t, lang } = useTranslation();
   const toast = useToast();
 
   const [patient, setPatient] = useState({ ...EMPTY_PATIENT });
-  const [services, setServices] = useState<any[]>([]);
-  const [doctors, setDoctors] = useState<any[]>([]);
-  const [selectedServices, setSelectedServices] = useState<any[]>([]);
-  const [selectedDoctor, setSelectedDoctor] = useState<any>(null);
+  const [services, setServices] = useState<ClinicService[]>([]);
+  const [doctors, setDoctors] = useState<ClinicDoctor[]>([]);
+  const [selectedServices, setSelectedServices] = useState<SelectedServiceItem[]>([]);
+  const [selectedDoctor, setSelectedDoctor] = useState<ClinicDoctor | null>(null);
   const [paymentType, setPaymentType] = useState('cash');
   const [discount, setDiscount] = useState(0);
   const [showDoctorModal, setShowDoctorModal] = useState(false);
   const [searchPatient, setSearchPatient] = useState('');
-  const [existingPatients, setExistingPatients] = useState<any[]>([]);
+  const [existingPatients, setExistingPatients] = useState<ExistingPatient[]>([]);
   const [showPatientSearch, setShowPatientSearch] = useState(false);
-  const [selectedPatientId, setSelectedPatientId] = useState<any>(null);
-  const [patientStatsionarInfo, setPatientStatsionarInfo] = useState<any>(null);
+  const [selectedPatientId, setSelectedPatientId] = useState<number | null>(null);
+  const [patientStatsionarInfo, setPatientStatsionarInfo] = useState<string | null>(null);
   const [notes, setNotes] = useState('');
   const [serviceSearch, setServiceSearch] = useState('');
   const [showCheckPreview, setShowCheckPreview] = useState(false);
-  const [highlightedServiceId, setHighlightedServiceId] = useState<any>(null);
+  const [highlightedServiceId, setHighlightedServiceId] = useState<number | null>(null);
   const [highlightedDoctorIndex, setHighlightedDoctorIndex] = useState(0);
-  const [activeShift, setActiveShift] = useState<any>(null);
+  const [activeShift, setActiveShift] = useState<ShiftRecord | null>(null);
   const [showShiftModal, setShowShiftModal] = useState(false);
-  const [shiftSummary, setShiftSummary] = useState<any>(null);
+  const [shiftSummary, setShiftSummary] = useState<ShiftSummary | null>(null);
   const [serviceViewMode, setServiceViewMode] = useState('grid'); // 'grid' or 'list'
   const [serviceSortOrder, setServiceSortOrder] = useState('manual'); // 'manual' or 'az'
   const [isLoaded, setIsLoaded] = useState(false);
@@ -48,10 +49,10 @@ const Reception = forwardRef<any, any>(function Reception(props, ref) {
 
   async function loadData() {
     try {
-      const allSvc = await db.getAllRows('services');
+      const allSvc = await db.getAllRows<ClinicService>('services');
       setServices(allSvc.filter(s => s.isActive !== 0).sort((a,b) => (a.orderIndex || 0) - (b.orderIndex || 0)));
       
-      const allDoc = await db.getAllRows('doctors');
+      const allDoc = await db.getAllRows<ClinicDoctor>('doctors');
       setDoctors(allDoc.filter(d => d.isActive !== 0).sort((a,b) => (a.fullName || '').localeCompare(b.fullName || '')));
 
       // Load active shift
@@ -72,8 +73,8 @@ const Reception = forwardRef<any, any>(function Reception(props, ref) {
           if (parsed.notes) setNotes(parsed.notes);
         } catch(e) {}
       }
-    } catch (err: any) {
-      toast.error(err.message);
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : String(err));
     } finally {
       setIsLoaded(true);
     }
@@ -113,17 +114,17 @@ const Reception = forwardRef<any, any>(function Reception(props, ref) {
         return p;
       });
 
-      setExistingPatients(matched);
-    } catch (err: any) {
-      toast.error(err.message);
+      setExistingPatients(matched as ExistingPatient[]);
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : String(err));
     }
   }
 
-  function selectExistingPatient(p: any) {
+  function selectExistingPatient(p: ExistingPatient) {
     setSelectedPatientId(p.id);
     setPatient({ fullName: p.fullName, phone: p.phone || '', birthDate: p.birthDate || '', gender: p.gender || 'male', address: p.address || '', source: p.source || 'none' });
     if (p.activeRoomId) {
-      setPatientStatsionarInfo(p.roomName);
+      setPatientStatsionarInfo(p.roomName ?? null);
     } else {
       setPatientStatsionarInfo(null);
     }
@@ -140,7 +141,7 @@ const Reception = forwardRef<any, any>(function Reception(props, ref) {
     s.name.toLowerCase().includes(serviceSearch.toLowerCase())
   );
 
-  function addService(svc: any) {
+  function addService(svc: ClinicService) {
     setSelectedServices(prev => {
       const exists = prev.find(s => s.id === svc.id);
       if (exists) {
@@ -151,7 +152,7 @@ const Reception = forwardRef<any, any>(function Reception(props, ref) {
     setHighlightedServiceId(svc.id);
   }
 
-  function removeService(svcId: any) {
+  function removeService(svcId: number | string) {
     setSelectedServices(prev => {
       const item = prev.find(s => s.id === svcId);
       if (!item) return prev;
@@ -160,7 +161,7 @@ const Reception = forwardRef<any, any>(function Reception(props, ref) {
     });
   }
 
-  function removeServiceFull(svcId: any) {
+  function removeServiceFull(svcId: number | string) {
     setSelectedServices(prev => prev.filter(s => s.id !== svcId));
   }
 
@@ -169,7 +170,7 @@ const Reception = forwardRef<any, any>(function Reception(props, ref) {
       const shifts = await db.getAllRows('shifts');
       const active = shifts.find(s => s.status === 'active');
       if (active) {
-        setActiveShift(active);
+        setActiveShift(active as ShiftRecord);
         return active;
       }
       
@@ -181,7 +182,7 @@ const Reception = forwardRef<any, any>(function Reception(props, ref) {
       const newShift = { ...res, type, status: 'active', id: res.id };
       setActiveShift(newShift);
       return newShift;
-    } catch(e: any) {
+    } catch(_e: unknown) {
       // toast error suppressed here to avoid noise in auto-check
     }
   }
@@ -193,8 +194,8 @@ const Reception = forwardRef<any, any>(function Reception(props, ref) {
       setActiveShift(newShift);
       setShiftSummary(null);
       toast.success(`${type === 'day' ? t('reception.dayShift') : t('reception.nightShift')} ${t('common.success')}`);
-    } catch(e: any) {
-      toast.error(e.message);
+    } catch(e: unknown) {
+      toast.error(e instanceof Error ? e.message : String(e));
     }
   }
 
@@ -222,8 +223,8 @@ const Reception = forwardRef<any, any>(function Reception(props, ref) {
       
       setShiftSummary(statsObj);
       setActiveShift(null);
-    } catch(e: any) {
-      toast.error(e.message);
+    } catch(e: unknown) {
+      toast.error(e instanceof Error ? e.message : String(e));
     }
   }
 
@@ -232,7 +233,7 @@ const Reception = forwardRef<any, any>(function Reception(props, ref) {
   }
 
   useEffect(() => {
-    function handleKeyDown(e: any) {
+    function handleKeyDown(e: KeyboardEvent) {
       if (showDoctorModal) {
         if (e.key === 'ArrowDown') {
           e.preventDefault();
@@ -250,8 +251,9 @@ const Reception = forwardRef<any, any>(function Reception(props, ref) {
         return;
       }
 
-      const targetTag = (e.target.tagName || '').toUpperCase();
-      if (targetTag === 'INPUT' || targetTag === 'TEXTAREA' || targetTag === 'SELECT' || e.target.isContentEditable) return;
+      const el = e.target instanceof HTMLElement ? e.target : null;
+      const targetTag = (el?.tagName || '').toUpperCase();
+      if (targetTag === 'INPUT' || targetTag === 'TEXTAREA' || targetTag === 'SELECT' || el?.isContentEditable) return;
 
       if (e.key === '=' || e.key === '+') {
         e.preventDefault();
@@ -414,8 +416,8 @@ const Reception = forwardRef<any, any>(function Reception(props, ref) {
       toast.success(t('common.success'));
       setShowCheckPreview(false);
       resetForm();
-    } catch (err: any) {
-      toast.error(err.message);
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : String(err));
     }
   }
 
@@ -509,8 +511,8 @@ const Reception = forwardRef<any, any>(function Reception(props, ref) {
       toast.success(t('common.success'));
       setShowCheckPreview(false);
       resetForm();
-    } catch (err: any) {
-      toast.error(err.message);
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : String(err));
     }
   }
 
@@ -528,8 +530,8 @@ const Reception = forwardRef<any, any>(function Reception(props, ref) {
     localStorage.removeItem('reception_draft');
   }
 
-  function formatPrice(n: any) {
-    return Number(n).toLocaleString(lang === 'uz' ? 'uz-UZ' : lang === 'ru' ? 'ru-RU' : 'en-US');
+  function formatPrice(n: number | string | null | undefined) {
+    return Number(n ?? 0).toLocaleString(lang === 'uz' ? 'uz-UZ' : lang === 'ru' ? 'ru-RU' : 'en-US');
   }
 
   function paymentIcon(type: string) {
@@ -922,7 +924,7 @@ const Reception = forwardRef<any, any>(function Reception(props, ref) {
                 <div style={{display:'flex', justifyContent:'space-between', marginTop: 10, fontSize: 18}}>
                   <span style={{fontWeight:600}}>{t('reception.totalAmount')}:</span>
                   <span style={{fontWeight:'bold', color:'var(--accent-success)'}}>
-                    {formatPrice(shiftSummary.cash + shiftSummary.card + shiftSummary.transfer)} som
+                    {formatPrice((shiftSummary.cash ?? 0) + (shiftSummary.card ?? 0) + (shiftSummary.transfer ?? 0))} som
                   </span>
                 </div>
               </div>

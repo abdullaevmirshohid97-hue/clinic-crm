@@ -3,12 +3,21 @@ import { useTranslation } from '../../i18n/LanguageContext';
 import { useToast } from '../../components/ui/Toast';
 import Modal from '../../components/ui/Modal';
 
+interface FeatureFlag {
+  id: number;
+  name: string;
+  label?: string;
+  category?: string;
+}
+
+type PermissionMap = Record<string, Record<string, boolean>>;
+
 export default function SuperAdmin() {
   const { t } = useTranslation();
   const toast = useToast();
-  const [features, setFeatures] = useState([]);
-  const [roles, setRoles] = useState(['super_admin', 'admin', 'doctor', 'receptionist', 'cashier']);
-  const [permissions, setPermissions] = useState({});
+  const [features, setFeatures] = useState<FeatureFlag[]>([]);
+  const [roles] = useState(['super_admin', 'admin', 'doctor', 'receptionist', 'cashier']);
+  const [permissions, setPermissions] = useState<PermissionMap>({});
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -19,39 +28,42 @@ export default function SuperAdmin() {
     setLoading(true);
     try {
       if (window.electronAPI) {
-        const feats = await window.electronAPI.auth.getFeatures();
-        setFeatures(feats);
+        const feats = await window.electronAPI.auth?.getFeatures?.();
+        setFeatures((feats as FeatureFlag[]) || []);
 
-        const permsMap = {};
+        const permsMap: PermissionMap = {};
         for (const role of roles) {
-          const rolePerms = await window.electronAPI.auth.getRolePermissions(role);
-          permsMap[role] = rolePerms.reduce((acc, p) => ({ ...acc, [p.feature_name]: p.canAccess }), {});
+          const rolePerms = await window.electronAPI.auth?.getRolePermissions?.(role) || [];
+          permsMap[role] = (rolePerms as Array<{ feature_name: string; canAccess: boolean }>)
+            .reduce<Record<string, boolean>>((acc, p) => ({ ...acc, [p.feature_name]: p.canAccess }), {});
         }
         setPermissions(permsMap);
       }
-    } catch (e) {
+    } catch (e: unknown) {
       toast.error('Ma\'lumotlarni yuklashda xatolik');
+      console.error(e);
     } finally {
       setLoading(false);
     }
   }
 
-  async function togglePermission(role, feature, current) {
+  async function togglePermission(role: string, feature: string, current: boolean) {
     try {
       if (window.electronAPI) {
-        await window.electronAPI.auth.updatePermission({
+        await window.electronAPI.auth?.updatePermission?.({
           roleName: role,
           featureName: feature,
           canAccess: !current
         });
-        setPermissions(prev => ({
+        setPermissions((prev) => ({
           ...prev,
           [role]: { ...prev[role], [feature]: !current }
         }));
         toast.success('Ruxsat yangilandi');
       }
-    } catch (e) {
+    } catch (e: unknown) {
       toast.error('O\'zgartirishda xatolik');
+      console.error(e);
     }
   }
 
@@ -91,7 +103,7 @@ export default function SuperAdmin() {
                         type="checkbox" 
                         checked={!!permissions[role]?.[f.name]} 
                         disabled={role === 'super_admin'}
-                        onChange={() => togglePermission(role, f.name, permissions[role]?.[f.name])}
+                        onChange={() => togglePermission(role, f.name, permissions[role]?.[f.name] ?? false)}
                         style={{ width: 20, height: 20, cursor: role === 'super_admin' ? 'not-allowed' : 'pointer' }}
                       />
                     </td>

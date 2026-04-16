@@ -1,6 +1,6 @@
 import { useEffect, useCallback } from 'react';
 
-const KEY_MAP = {
+const KEY_MAP: Record<string, string> = {
   F1: 'help',
   F2: 'newPatient',
   F3: 'queueTicket',
@@ -15,7 +15,7 @@ const KEY_MAP = {
   F12: 'closeRegister',
 };
 
-const NAVIGATION_KEYS = {
+const NAVIGATION_KEYS: Record<string, string> = {
   F1: 'help',
   F4: 'journal',
   F6: 'inpatient',
@@ -23,21 +23,24 @@ const NAVIGATION_KEYS = {
   F9: 'settings',
 };
 
-export function useKeyboard({ onNavigate, onAction }) {
-  const handleKeyDown = useCallback((e) => {
+interface KeyboardOptions {
+  onNavigate?: (page: string) => void;
+  onAction?: (action: string, key: string) => void;
+}
+
+export function useKeyboard({ onNavigate, onAction }: KeyboardOptions) {
+  const handleKeyDown = useCallback((e: KeyboardEvent) => {
     const action = KEY_MAP[e.key];
     if (!action) return;
 
     e.preventDefault();
     e.stopPropagation();
 
-    // Navigation keys change the page
     if (NAVIGATION_KEYS[e.key] && onNavigate) {
       onNavigate(NAVIGATION_KEYS[e.key]);
       return;
     }
 
-    // Action keys trigger specific behavior
     if (onAction) {
       onAction(action, e.key);
     }

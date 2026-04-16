@@ -4,6 +4,7 @@ import { useToast } from '../components/ui/Toast';
 import Modal from '../components/ui/Modal';
 import { db } from '../utils/db';
 import { supabase } from '../lib/supabase';
+import type { ClinicDoctor, RoomRecord, RoomPatientRecord, InpatientTreatmentRecord, VitalsRecord, DischargeInvoice, ExistingPatient } from '../types/clinic';
 
 const DIET_TYPES = {
   standard: 'inpatient.diets.standard',
@@ -18,42 +19,42 @@ export default function Inpatient() {
   const toast = useToast();
 
   const [activeTab, setActiveTab] = useState('map'); 
-  const [rooms, setRooms] = useState<any[]>([]);
-  const [doctors, setDoctors] = useState<any[]>([]);
-  const [roomPatients, setRoomPatients] = useState<any[]>([]);
-  const [inpatientTreatments, setInpatientTreatments] = useState<any[]>([]);
+  const [rooms, setRooms] = useState<RoomRecord[]>([]);
+  const [doctors, setDoctors] = useState<ClinicDoctor[]>([]);
+  const [roomPatients, setRoomPatients] = useState<RoomPatientRecord[]>([]);
+  const [inpatientTreatments, setInpatientTreatments] = useState<InpatientTreatmentRecord[]>([]);
   const [treatmentsLoading, setTreatmentsLoading] = useState(false);
 
-  const [showRoomModal, setShowRoomModal] = useState<any>(false);
-  const [editRoom, setEditRoom] = useState<any>(null);
+  const [showRoomModal, setShowRoomModal] = useState(false);
+  const [editRoom, setEditRoom] = useState<RoomRecord | null>(null);
   const [roomForm, setRoomForm] = useState({ name: '', department: '', floor: 1, capacity: 2, type: 'shared', pricePerDay: '', mealPrice: '', cleaningStatus: 'clean' });
 
-  const [showPlaceModal, setShowPlaceModal] = useState<any>(null);
+  const [showPlaceModal, setShowPlaceModal] = useState<RoomRecord | null>(null);
   const [placeForm, setPlaceForm] = useState({ 
     patientName: '', age: '', gender: 'm', phone: '', doctorId: '', tariffId: '',
     hasMeals: false, dietType: 'standard', bedIndex: '', deposit: '0', 
     notes: '', arrivalTime: new Date().toLocaleTimeString('uz-UZ').slice(0, 5),
     status: 'active'
   });
-  const [isEditingPatient, setIsEditingPatient] = useState<any>(null);
+  const [isEditingPatient, setIsEditingPatient] = useState<RoomPatientRecord | null>(null);
 
-  const [showTreatmentModal, setShowTreatmentModal] = useState<any>(null); 
+  const [showTreatmentModal, setShowTreatmentModal] = useState<number | null>(null); 
   const [treatmentForm, setTreatmentForm] = useState({ title: '', scheduledTime: '09:00', notes: '' });
 
-  const [showDepositModal, setShowDepositModal] = useState<any>(null); 
+  const [showDepositModal, setShowDepositModal] = useState<RoomPatientRecord | null>(null); 
   const [depositAmount, setDepositAmount] = useState('');
 
-  const [showDischargeModal, setShowDischargeModal] = useState<any>(null); 
-  const [dischargeInvoice, setDischargeInvoice] = useState<any>(null);
+  const [showDischargeModal, setShowDischargeModal] = useState<RoomPatientRecord | null>(null); 
+  const [dischargeInvoice, setDischargeInvoice] = useState<DischargeInvoice | null>(null);
 
-  const [draggedPatient, setDraggedPatient] = useState<any>(null);
+  const [draggedPatient, setDraggedPatient] = useState<RoomPatientRecord | null>(null);
 
   const [filterType, setFilterType] = useState('all'); 
   const [filterStatus, setFilterStatus] = useState('all'); 
 
-  const [showVitalsModal, setShowVitalsModal] = useState<any>(null); 
+  const [showVitalsModal, setShowVitalsModal] = useState<RoomPatientRecord | null>(null); 
   const [vitalsForm, setVitalsForm] = useState({ temperature: '', bp: '', pulse: '', weight: '' });
-  const [vitalsHistory, setVitalsHistory] = useState<any[]>([]);
+  const [vitalsHistory, setVitalsHistory] = useState<VitalsRecord[]>([]);
 
   const [filterNurseStatus, setFilterNurseStatus] = useState('all');
   const [handoverNote, setHandoverNote] = useState('');
@@ -62,17 +63,18 @@ export default function Inpatient() {
 
   async function loadAll() {
     try {
-      const rm = await db.getAllRows('rooms');
+      const rm = await db.getAllRows<RoomRecord>('rooms');
       setRooms(rm.filter(r => r.isActive !== 0).sort((a,b) => ((a.floor || 1) - (b.floor || 1)) || (a.name || '').localeCompare(b.name || '')));
       
-      const docs = await db.getAllRows('doctors');
+      const docs = await db.getAllRows<ClinicDoctor>('doctors');
       setDoctors(docs.filter(d => d.isActive !== 0));
       
-      const allRp = await db.getAllRows('room_patients');
-      const allP = await db.getAllRows('patients');
-      const allTariffs = await db.getAllRows('room_tariffs');
+      const allRp = await db.getAllRows<RoomPatientRecord>('room_patients');
+      const allP = await db.getAllRows<ExistingPatient>('patients');
+      type RoomTariffRow = { id: number; name?: string; pricePerDay?: number };
+      const allTariffs = await db.getAllRows<RoomTariffRow>('room_tariffs');
       
-      const activePats = allRp
+      const activePats: RoomPatientRecord[] = allRp
         .filter(rp => rp.status === 'active' || rp.status === 'reserved')
         .map(rp => {
           const p = allP.find(pat => pat.id === rp.patientId);
@@ -93,13 +95,13 @@ export default function Inpatient() {
       
       setRoomPatients(activePats);
       loadTreatments();
-    } catch (err: any) { toast.error(err.message); }
+    } catch (err: unknown) { toast.error(err instanceof Error ? err.message : String(err)); }
   }
 
   async function loadTreatments() {
     setTreatmentsLoading(true);
     try {
-      const allT = await db.getAllRows('inpatient_treatments');
+      const allT = await db.getAllRows<InpatientTreatmentRecord>('inpatient_treatments');
       const trms = allT
         .filter(t => {
           const rp = roomPatients.find(x => x.id === t.roomPatientId);
@@ -113,9 +115,9 @@ export default function Inpatient() {
             roomName: rp ? rp.roomName : 'Noma\'lum'
           };
         })
-        .sort((a,b) => (a.scheduledTime || '').localeCompare(b.scheduledTime || ''));
-      setInpatientTreatments(trms);
-    } catch (err: any) {}
+        .sort((a, b) => ((a.scheduledTime as string) || '').localeCompare((b.scheduledTime as string) || ''));
+      setInpatientTreatments(trms as InpatientTreatmentRecord[]);
+    } catch (_err: unknown) {}
     finally { setTreatmentsLoading(false); }
   }
 
@@ -123,12 +125,12 @@ export default function Inpatient() {
 
   function formatPrice(n: number | string) { return Number(n || 0).toLocaleString('uz-UZ'); }
 
-  const handleDragStart = (e: React.DragEvent, rp: any) => {
+  const handleDragStart = (e: React.DragEvent, rp: RoomPatientRecord) => {
     setDraggedPatient(rp);
     e.dataTransfer.setData('text/plain', rp.id.toString());
   };
   const handleDragOver = (e: React.DragEvent) => e.preventDefault();
-  const handleDrop = async (e: React.DragEvent, targetRoom: any, targetBedIndex: string) => {
+  const handleDrop = async (e: React.DragEvent, targetRoom: RoomRecord, targetBedIndex: string) => {
     e.preventDefault();
     if (!draggedPatient) return;
     if (draggedPatient.roomId === targetRoom.id && draggedPatient.bedIndex === targetBedIndex) {
@@ -142,7 +144,7 @@ export default function Inpatient() {
       });
       toast.success(`${draggedPatient.patientName} o'tkazildi: ${targetRoom.name}`);
       await loadAll();
-    } catch (err: any) { toast.error("O'tkazishda xatolik: " + err.message); }
+    } catch (err: unknown) { toast.error("O'tkazishda xatolik: " + (err instanceof Error ? err.message : String(err))); }
     setDraggedPatient(null);
   };
 
@@ -159,17 +161,17 @@ export default function Inpatient() {
       setShowTreatmentModal(null);
       setTreatmentForm({ title: '', scheduledTime: '09:00', notes: '' });
       loadTreatments();
-    } catch (e: any) { toast.error(e.message); }
+    } catch (e: unknown) { toast.error(e instanceof Error ? e.message : String(e)); }
   }
 
   async function loadVitals(rpId: string | number) {
     try {
-      const allV = await db.getAllRows('vital_signs');
+      const allV = await db.getAllRows<VitalsRecord>('vital_signs');
       const res = allV
         .filter(v => v.roomPatientId === rpId)
-        .sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        .sort((a,b) => new Date(b.createdAt ?? '').getTime() - new Date(a.createdAt ?? '').getTime());
       setVitalsHistory(res);
-    } catch (e: any) {}
+    } catch (_e: unknown) {}
   }
 
   async function saveVitals() {
@@ -185,7 +187,7 @@ export default function Inpatient() {
       toast.success(t('inpatient.vitals.save_success'));
       loadVitals(showVitalsModal.id);
       setVitalsForm({ temperature: '', bp: '', pulse: '', weight: '' });
-    } catch (e: any) { toast.error(e.message); }
+    } catch (e: unknown) { toast.error(e instanceof Error ? e.message : String(e)); }
   }
   
   async function toggleTreatmentDone(treatmentId: string | number, isDone: boolean) {
@@ -195,11 +197,11 @@ export default function Inpatient() {
         doneAt: isDone ? new Date().toISOString() : null 
       });
       loadTreatments();
-    } catch (e: any) { toast.error(e.message); }
+    } catch (e: unknown) { toast.error(e instanceof Error ? e.message : String(e)); }
   }
 
-  async function generateDischargeInvoice(rp: any) {
-    const entryDate = new Date(rp.entryDate);
+  async function generateDischargeInvoice(rp: RoomPatientRecord) {
+    const entryDate = new Date(rp.entryDate ?? '');
     const autoDays = Math.max(1, Math.ceil((new Date().getTime() - entryDate.getTime()) / (1000 * 60 * 60 * 24)));
     const days = rp.days || autoDays;
     
@@ -213,12 +215,13 @@ export default function Inpatient() {
     try {
       const { data: tx } = await supabase.from('transactions').select('debt, amount, type, payment_type, description').eq('patient_id', rp.patientId);
       if (tx) {
-        tx.forEach(t => { 
+        type TxRow = { debt: number | null; amount: number | null; type: string | null; payment_type: string | null };
+        (tx as TxRow[]).forEach((t) => { 
           if (t.type === 'debt') additionalDebt += Number(t.debt || t.amount || 0); 
           if (t.type === 'pharmacy_sale' && t.payment_type === 'debt') additionalDebt += Number(t.amount || 0);
         });
       }
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error(e);
     }
 
@@ -255,23 +258,23 @@ export default function Inpatient() {
       toast.success(`${rp.patientName} ${t('inpatient.discharge.success')}`);
       setShowDischargeModal(null);
       await loadAll();
-    } catch (e: any) { toast.error(e.message); }
+    } catch (e: unknown) { toast.error(e instanceof Error ? e.message : String(e)); }
   }
 
   const extractKitchenData = () => {
-    const data: any = { total: 0, byDiet: {}, byRoom: [] };
-    roomPatients.filter((rp: any) => rp.hasMeals).forEach((rp: any) => {
+    const data: { total: number; byDiet: Record<string, number>; byRoom: Array<{ rp: RoomPatientRecord; dietLabel: string }> } = { total: 0, byDiet: {}, byRoom: [] };
+    roomPatients.filter((rp) => rp.hasMeals).forEach((rp) => {
       data.total++;
-      const dt = rp.dietType || 'standard';
+      const dt = (rp.dietType || 'standard') as keyof typeof DIET_TYPES;
       data.byDiet[dt] = (data.byDiet[dt] || 0) + 1;
-      data.byRoom.push({ rp, dietLabel: t((DIET_TYPES as any)[dt]) || dt });
+      data.byRoom.push({ rp, dietLabel: t(DIET_TYPES[dt] ?? dt) || dt });
     });
     return data;
   };
   const kitchenData = extractKitchenData();
 
-  const groupedRooms: any = {};
-  rooms.forEach((room: any) => {
+  const groupedRooms: Record<number, RoomRecord[]> = {};
+  rooms.forEach((room) => {
     const f = room.floor || 1;
     if (!groupedRooms[f]) groupedRooms[f] = [];
     groupedRooms[f].push(room);
@@ -311,10 +314,10 @@ export default function Inpatient() {
         {activeTab === 'map' && (
           <div className="floor-plan-container" style={{ flex:1, overflowY:'auto', paddingRight:10 }}>
             {floors.map((floor: number) => {
-              const floorRooms = (groupedRooms[floor] || []).filter((room: any) => {
+              const floorRooms = (groupedRooms[floor] || []).filter((room) => {
                 if (filterType !== 'all' && room.type !== filterType) return false;
-                const occupants = roomPatients.filter((rp: any) => rp.roomId === room.id);
-                if (filterStatus === 'empty' && occupants.length >= room.capacity) return false;
+                const occupants = roomPatients.filter((rp) => rp.roomId === room.id);
+                if (filterStatus === 'empty' && occupants.length >= (room.capacity ?? 0)) return false;
                 if (filterStatus === 'occupied' && occupants.length === 0) return false;
                 return true;
               });
@@ -324,8 +327,8 @@ export default function Inpatient() {
                   <div className="card-header" style={{background:'rgba(255,255,255,0.02)'}}><h3>🏢 {floor}-qavat</h3></div>
                   <div className="card-body">
                     <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(300px, 1fr))', gap:20}}>
-                      {floorRooms.map((room: any) => {
-                        const occupants = roomPatients.filter((rp: any) => rp.roomId === room.id);
+                      {floorRooms.map((room) => {
+                        const occupants = roomPatients.filter((rp) => rp.roomId === room.id);
                         return (
                           <div key={room.id} className="card p-3" style={{border:`1px solid ${room.cleaningStatus === 'cleaning'?'var(--accent-warning)':'var(--border-color)'}`, position:'relative', cursor:'pointer'}} onClick={() => { setPlaceForm(p=>({...p, patientName:'', phone:'', age:'', gender:'m', doctorId:'', bedIndex:'', deposit:'0', notes:'', arrivalTime: new Date().toLocaleTimeString('uz-UZ').slice(0,5)})); setShowPlaceModal(room); }}>
                            {room.cleaningStatus === 'cleaning' && <div style={{position:'absolute', top:0, right:0, background:'var(--accent-warning)', color:'#000', fontSize:10, padding:'2px 8px', borderBottomLeftRadius:8}}>🧹 Tozalamoqda</div>}
@@ -334,19 +337,19 @@ export default function Inpatient() {
                              <div style={{display:'flex', gap:5}}><button className="btn btn-sm btn-ghost" style={{padding:'2px 6px', fontSize:12}} onClick={()=>{setPlaceForm(p=>({...p, patientName:''})); setShowPlaceModal(room);}}>+ Qo'shish</button></div>
                            </div>
                            <div className="bed-grid">
-                             {Array.from({length: room.capacity}).map((_, i) => {
+                             {Array.from({length: room.capacity ?? 0}).map((_, i) => {
                                const bedLabel = `${room.name}-${String.fromCharCode(65+i)}`;
-                               const occupant = occupants.find((rp: any) => rp.bedIndex === bedLabel) || (!occupants.some((o: any) => o.bedIndex) && occupants[i]);
+                               const occupant = occupants.find((rp) => rp.bedIndex === bedLabel) || (!occupants.some((o) => o.bedIndex) && occupants[i]);
                                if (occupant) {
-                                  const days = Math.max(1, Math.ceil((new Date().getTime() - new Date(occupant.entryDate).getTime()) / (1000 * 60 * 60 * 24)));
-                                  const lowDeposit = occupant.depositBalance < (Number(room.pricePerDay) || 0);
+                                  const days = Math.max(1, Math.ceil((new Date().getTime() - new Date(occupant.entryDate ?? '').getTime()) / (1000 * 60 * 60 * 24)));
+                                  const lowDeposit = (occupant.depositBalance ?? 0) < (Number(room.pricePerDay) || 0);
                                   return (
                                     <div key={i} className={`bed-card ${occupant.status === 'reserved'?'bed-reserved':'bed-occupied'} ${lowDeposit && occupant.status !== 'reserved'?'bed-deposit-danger':''}`} draggable onDragStart={e=>handleDragStart(e, occupant)}>
                                       <div className="bed-status-dot"></div>
                                       <div className="bed-title">{bedLabel} {room.type === 'luxury' && '🌟'}</div>
                                       <div className="bed-patient-name" title={`Doktor: ${occupant.doctorName}\nTashxis: ${occupant.notes || 'Noma\'lum'}`}>{occupant.patientName}</div>
                                       <div className="bed-days-badge">{days} kun</div>
-                                      <div style={{fontSize:10, color:lowDeposit?'var(--accent-danger)':'var(--text-secondary)', marginTop:'auto'}}>💵 {formatPrice(occupant.depositBalance)}</div>
+                                      <div style={{fontSize:10, color:lowDeposit?'var(--accent-danger)':'var(--text-secondary)', marginTop:'auto'}}>💵 {formatPrice(occupant.depositBalance ?? 0)}</div>
                                       <div style={{display:'flex', justifyContent:'space-between', marginTop:4, gap:4}}>
                                         <button className="btn btn-sm btn-ghost" onClick={()=>{setShowVitalsModal(occupant); loadVitals(occupant.id);}}>💓</button>
                                         <button className="btn btn-sm btn-ghost" onClick={()=>setShowTreatmentModal(occupant.id)}>💉</button>
@@ -391,14 +394,14 @@ export default function Inpatient() {
                 </select>
               </div>
               <div style={{flex:1, overflowY:'auto'}}>
-                {inpatientTreatments.filter((t: any) => filterNurseStatus === 'all' || (filterNurseStatus === 'done' ? t.isDone : !t.isDone)).map((tr: any) => (
-                  <div key={tr.id} className={`nurse-timeline-row ${tr.isDone?'nurse-treatment-done':''} ${tr.title.toLowerCase().includes('tabletka')?'treatment-type-tablet':tr.title.toLowerCase().includes('cito')?'treatment-type-urgent':'treatment-type-injection'}`}>
-                    <div style={{marginRight:15}}><input type="checkbox" checked={Boolean(tr.isDone)} onChange={(e: any) => toggleTreatmentDone(tr.id, e.target.checked)} style={{transform:'scale(1.4)'}}/></div>
+                {inpatientTreatments.filter((t) => filterNurseStatus === 'all' || (filterNurseStatus === 'done' ? t.isDone : !t.isDone)).map((tr) => (
+                  <div key={tr.id} className={`nurse-timeline-row ${tr.isDone?'nurse-treatment-done':''} ${(tr.title ?? '').toLowerCase().includes('tabletka')?'treatment-type-tablet':(tr.title ?? '').toLowerCase().includes('cito')?'treatment-type-urgent':'treatment-type-injection'}`}>
+                    <div style={{marginRight:15}}><input type="checkbox" checked={Boolean(tr.isDone)} onChange={(e) => toggleTreatmentDone(tr.id, e.target.checked)} style={{transform:'scale(1.4)'}}/></div>
                     <div style={{flex:1}}>
                       <div style={{fontWeight:800, fontSize:15}}>{tr.scheduledTime} — {tr.title}</div>
                       <div style={{fontSize:12, opacity:0.8}}>{tr.patientName} | <span className="badge">{tr.roomName}</span></div>
                     </div>
-                    {tr.isDone && <div style={{fontSize:10, color:'var(--accent-success)'}}>✅ {new Date(tr.doneAt).toLocaleTimeString().slice(0,5)}</div>}
+                    {tr.isDone && <div style={{fontSize:10, color:'var(--accent-success)'}}>✅ {new Date(tr.doneAt ?? '').toLocaleTimeString().slice(0,5)}</div>}
                   </div>
                 ))}
               </div>
@@ -407,16 +410,16 @@ export default function Inpatient() {
             <div className="nurse-column">
               <div className="nurse-column-header">📈 Monitoring (T°, BP, SpO2)</div>
               <div style={{flex:1, overflowY:'auto'}}>
-                {roomPatients.map((rp: any) => (
+                {roomPatients.map((rp) => (
                   <div key={rp.id} className="nurse-vitals-card">
                     <div style={{display:'flex', justifyContent:'space-between', marginBottom:8}}>
                       <span style={{fontWeight:700}}>{rp.patientName} ({rp.roomName})</span>
                       <button className="btn btn-sm btn-ghost" onClick={()=>{setShowVitalsModal(rp); loadVitals(rp.id);}}>+ Kiritish</button>
                     </div>
                     <div style={{display:'flex', gap:15, fontSize:12, background:'rgba(255,255,255,0.02)', padding:8, borderRadius:8}}>
-                      <div style={{flex:1, textAlign:'center'}}><div>Harorat</div><div style={{fontWeight:800}}>{rp.temp || '36.6'}° <span className="vitals-trend-down">↓</span></div></div>
+                      <div style={{flex:1, textAlign:'center'}}><div>Harorat</div><div style={{fontWeight:800}}>{String(rp.temp || '36.6')}° <span className="vitals-trend-down">↓</span></div></div>
                       <div style={{flex:1, textAlign:'center'}}><div>Bosim</div><div style={{fontWeight:800}}>{rp.lastBP || '120/80'}</div></div>
-                      <div style={{flex:1, textAlign:'center'}}><div>Puls</div><div style={{fontWeight:800}}>{rp.pulse || '72'} <span className="vitals-trend-up">↑</span></div></div>
+                      <div style={{flex:1, textAlign:'center'}}><div>Puls</div><div style={{fontWeight:800}}>{String(rp.pulse || '72')} <span className="vitals-trend-up">↑</span></div></div>
                     </div>
                   </div>
                 ))}
@@ -451,7 +454,7 @@ export default function Inpatient() {
                   <div style={{display:'flex', flexDirection:'column', gap:10}}>
                     {Object.entries(kitchenData.byDiet).map(([key, count]) => (
                       <div key={key} style={{display:'flex', justifyContent:'space-between', padding:10, background:'var(--bg-input)', borderRadius:8}}>
-                        <span>{t((DIET_TYPES as any)[key]) || key}</span><span style={{fontWeight:700}}>{count as any} ta</span>
+                        <span>{t(DIET_TYPES[key as keyof typeof DIET_TYPES] ?? key) || key}</span><span style={{fontWeight:700}}>{count} ta</span>
                       </div>
                     ))}
                   </div>
@@ -464,7 +467,7 @@ export default function Inpatient() {
                   <table className="data-table">
                     <thead><tr><th>Joy</th><th>Bemor</th><th>Parhez</th></tr></thead>
                     <tbody>
-                      {kitchenData.byRoom.map(({rp, dietLabel}: any, i: number) => (
+                      {kitchenData.byRoom.map(({rp, dietLabel}, i: number) => (
                         <tr key={i}><td><span className="badge">{rp.bedIndex || rp.roomName}</span></td><td>{rp.patientName}</td><td style={{color:'#FF9F0A', fontWeight:600}}>{dietLabel}</td></tr>
                       ))}
                     </tbody>
@@ -488,7 +491,7 @@ export default function Inpatient() {
           <div className="form-group"><label>Shifokor</label>
             <select className="form-input" value={placeForm.doctorId} onChange={e=>setPlaceForm({...placeForm, doctorId:e.target.value})}>
               <option value="">— Tanlang —</option>
-              {doctors.map((d: any)=><option key={d.id} value={d.id}>{d.fullName}</option>)}
+              {doctors.map((d)=><option key={d.id} value={d.id}>{d.fullName}</option>)}
             </select>
           </div>
           <div className="form-group"><label>O'rin (Karavot)</label><input className="form-input" placeholder="101-A" value={placeForm.bedIndex} onChange={e=>setPlaceForm({...placeForm, bedIndex:e.target.value})}/></div>
@@ -498,8 +501,8 @@ export default function Inpatient() {
               <option value="active">🔴 Band</option><option value="reserved">🟡 Rezerv</option>
             </select>
           </div>
-          <div className="form-group" style={{marginTop:10}}><label style={{display:'flex', gap:10}}><input type="checkbox" checked={placeForm.hasMeals} onChange={(e: any)=>setPlaceForm({...placeForm, hasMeals:e.target.checked})}/> Ovqat bilan</label></div>
-          {placeForm.hasMeals && <div className="form-group full-width"><label>Parhez</label><select className="form-input" value={placeForm.dietType} onChange={(e: any)=>setPlaceForm({...placeForm, dietType:e.target.value})}>{Object.entries(DIET_TYPES).map(([k,v]) => <option key={k} value={k}>{t(v as string)}</option>)}</select></div>}
+          <div className="form-group" style={{marginTop:10}}><label style={{display:'flex', gap:10}}><input type="checkbox" checked={placeForm.hasMeals} onChange={(e)=>setPlaceForm({...placeForm, hasMeals:e.target.checked})}/> Ovqat bilan</label></div>
+          {placeForm.hasMeals && <div className="form-group full-width"><label>Parhez</label><select className="form-input" value={placeForm.dietType} onChange={(e)=>setPlaceForm({...placeForm, dietType:e.target.value})}>{Object.entries(DIET_TYPES).map(([k,v]) => <option key={k} value={k}>{t(v)}</option>)}</select></div>}
           <div className="form-group full-width"><label>Izoh</label><input className="form-input" placeholder="Tashxis, eslatma..." value={placeForm.notes} onChange={e=>setPlaceForm({...placeForm, notes:e.target.value})}/></div>
         </div>
         <button className="btn btn-primary w-full mt-4" onClick={async()=>{
@@ -538,7 +541,7 @@ export default function Inpatient() {
             setShowPlaceModal(null);
             loadAll();
             toast.success("Joylashtirildi!");
-          } catch(e: any){ toast.error(e.message); }
+          } catch(e: unknown){ toast.error(e instanceof Error ? e.message : String(e)); }
         }}>Saqlash</button>
       </Modal>
 
@@ -556,12 +559,12 @@ export default function Inpatient() {
            <div style={{fontSize:18, marginBottom:10}}>{showDepositModal?.patientName}</div>
            <input type="number" className="form-input w-full" value={depositAmount} onChange={e=>setDepositAmount(e.target.value)} autoFocus/>
            <button className="btn btn-success w-full mt-4" onClick={async()=>{
-             if(Number(depositAmount)<=0) return;
+             if(Number(depositAmount)<=0 || !showDepositModal) return;
              try {
                await db.update('room_patients', showDepositModal.id, { depositBalance: Number(showDepositModal.depositBalance || 0) + Number(depositAmount) });
                await db.insert('transactions', { patientId: showDepositModal.patientId, patient_name: showDepositModal.patientName, type: 'payment', amount: Number(depositAmount), description: `Depozit: Statsionar` });
                setShowDepositModal(null); loadAll(); toast.success("Qabul qilindi!");
-             } catch(e: any){toast.error(e.message)}
+             } catch(e: unknown){toast.error(e instanceof Error ? e.message : String(e))}
            }}>Tasdiqlash</button>
          </div>
       </Modal>

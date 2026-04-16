@@ -1,4 +1,6 @@
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
+import type { User, Session } from '@supabase/supabase-js';
+import type { ProfileWithRole, AppPermission } from '../types/clinic';
 
 /**
  * Clary SaaS Auth Store.
@@ -6,8 +8,8 @@ import { supabase, isSupabaseConfigured } from '../lib/supabase';
  */
 
 interface AuthState {
-  user: any | null;
-  session: any | null;
+  user: User | null;
+  session: Session | null;
   clinicId: string | null;
   role: string | null;
   permissions: string[];
@@ -51,15 +53,14 @@ export const authStore = {
     _state.isLoading = true;
     notify();
 
-    // Impersonation Interception (DEV mode only - security guard)
     if (import.meta.env.DEV && typeof window !== 'undefined') {
       const searchParams = new URLSearchParams(window.location.search);
       const impId = searchParams.get('impersonate_clinic_id');
       if (impId) {
         console.warn('[DEV ONLY] Impersonation mode active for clinic:', impId);
         _state = {
-          user: { id: 'impersonator', email: 'superadmin@localhost' },
-          session: { access_token: 'mock-token' },
+          user: { id: 'impersonator', email: 'superadmin@localhost' } as User,
+          session: { access_token: 'mock-token' } as Session,
           clinicId: impId,
           role: 'super_admin',
           permissions: ['dashboard', 'reception', 'cashier', 'analytics', 'settings'],
@@ -75,7 +76,6 @@ export const authStore = {
     const { data: { session } } = await supabase.auth.getSession();
     
     if (session?.user) {
-      // Get profile data for multi-tenant context
       const { data: profile } = await supabase
         .from('profiles')
         .select('*, roles(name)')
@@ -83,24 +83,24 @@ export const authStore = {
         .single();
 
       if (profile) {
-        // Fetch permissions for the role
+        const typedProfile = profile as ProfileWithRole;
+        const roleName = typedProfile.roles?.name;
         const { data: perms } = await supabase
           .from('app_permissions')
           .select('feature_name')
-          .eq('role_name', (profile as any).roles?.name)
+          .eq('role_name', roleName)
           .eq('canAccess', 1);
 
         _state = {
           user: session.user,
           session: session,
-          clinicId: profile.clinic_id,
-          role: (profile as any).roles?.name || 'guest',
-          permissions: perms?.map(p => p.feature_name) || [],
+          clinicId: typedProfile.clinic_id,
+          role: roleName || 'guest',
+          permissions: (perms as AppPermission[] | null)?.map(p => p.feature_name) || [],
           isLoading: false,
           isAuthenticated: true,
         };
       } else {
-        // Logged in but no profile? Should not happen in production.
         _state.isLoading = false;
         _state.isAuthenticated = false;
       }
@@ -144,11 +144,9 @@ export const authStore = {
   },
 };
 
-// Initial trigger
 if (isSupabaseConfigured) {
   authStore.initialize();
 
-  // Listen for auth state changes
   supabase.auth.onAuthStateChange(() => {
     authStore.initialize();
   });

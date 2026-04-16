@@ -3,7 +3,7 @@ import { useTranslation } from '../../i18n/LanguageContext';
 import { useToast } from '../../components/ui/Toast';
 import { analyticsApi, roomApi, queueApi } from '../../services/clinic.api';
 
-export default function Dashboard({ onNavigate }) {
+export default function Dashboard({ onNavigate }: { onNavigate?: (page: string) => void }) {
   const { t } = useTranslation();
   const toast = useToast();
   const [loading, setLoading] = useState(true);
@@ -37,7 +37,7 @@ export default function Dashboard({ onNavigate }) {
     }
   }
 
-  function formatPrice(num) {
+  function formatPrice(num: number | string | null | undefined) {
     return Number(num || 0).toLocaleString('uz-UZ');
   }
 
@@ -97,8 +97,8 @@ export default function Dashboard({ onNavigate }) {
             <p><strong>Status:</strong> Barcha tizimlar to'liq API layer orqali ulandi (CTO Architect).</p>
             <p>Real-time analytics backend orqali {new Date().toLocaleTimeString()} da yuklandi.</p>
             <div style={{ marginTop: 20 }}>
-              <button className="btn btn-primary" onClick={() => onNavigate('reception')}>📝 Registratura</button>{' '}
-              <button className="btn btn-secondary" onClick={() => onNavigate('pharmacy')}>💊 Dorixona</button>
+              <button className="btn btn-primary" onClick={() => onNavigate?.('reception')}>📝 Registratura</button>{' '}
+              <button className="btn btn-secondary" onClick={() => onNavigate?.('pharmacy')}>💊 Dorixona</button>
             </div>
           </div>
         </div>

@@ -1,4 +1,5 @@
 import React from 'react';
+import type { ReceptionHandle } from '../types/clinic';
 import Dashboard from '../pages/dashboard/Dashboard';
 import PatientsToday from '../pages/patients/PatientsToday';
 import Reception from '../pages/patients/Reception';
@@ -37,8 +38,20 @@ export const PAGE_MAP = {
   subscription: Subscription,
 };
 
-export function AppRoutes({ activePage, receptionRef, handleNavigate }: { activePage: string, receptionRef: any, handleNavigate: any }) {
-  const PageComponent = (PAGE_MAP as any)[activePage] || Dashboard;
+export type PageKey = keyof typeof PAGE_MAP;
+
+interface PageSharedProps {
+  ref?: React.Ref<ReceptionHandle | null>;
+  onNavigate?: (page: string) => void;
+}
+
+export function AppRoutes({ activePage, receptionRef, handleNavigate }: {
+  activePage: string;
+  receptionRef: React.RefObject<ReceptionHandle | null>;
+  handleNavigate: (page: string) => void;
+}) {
+  const key: PageKey = activePage in PAGE_MAP ? (activePage as PageKey) : 'dashboard';
+  const PageComponent = PAGE_MAP[key] as React.ComponentType<Partial<PageSharedProps>>;
   
   return (
     <PageComponent 

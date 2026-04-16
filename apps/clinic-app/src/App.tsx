@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
+import type { ReceptionHandle } from './types/clinic';
 import Layout from './components/layout/Layout';
 import { useKeyboard } from './hooks/useKeyboard';
 import { authStore } from './app/store';
@@ -9,7 +10,7 @@ import Login from './features/auth/Login';
 import QueueMonitor from './pages/QueueMonitor';
 import { isSupabaseConfigured } from './lib/supabase';
 
-const FKEY_NAV_MAP = {
+const FKEY_NAV_MAP: Record<string, string> = {
   help: 'help',
   journal: 'journal',
   inpatient: 'inpatient',
@@ -27,7 +28,7 @@ export default function App() {
   });
   
   const [authState, setAuthState] = useState(authStore.getState());
-  const receptionRef = useRef(null);
+  const receptionRef = useRef<ReceptionHandle | null>(null);
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
@@ -36,20 +37,20 @@ export default function App() {
 
   useEffect(() => {
     const unsub = authStore.subscribe(setAuthState);
-    return () => unsub();
+    return () => { unsub(); };
   }, []);
 
-  const handleNavigate = useCallback((page) => {
+  const handleNavigate = useCallback((page: string) => {
     const target = FKEY_NAV_MAP[page] || page;
     if (!authStore.hasPermission(target) && !authStore.hasRole('super_admin')) {
       toast.error('Bu bo\'limga kirishga ruxsat yo\'q');
       return;
     }
 
-    if (PAGE_MAP[target]) setActivePage(target);
+    if ((PAGE_MAP as Record<string, unknown>)[target]) setActivePage(target);
   }, []);
 
-  const handleAction = useCallback((action) => {
+  const handleAction = useCallback((action: string) => {
     switch (action) {
       case 'newPatient': handleNavigate('reception'); break;
       case 'queueTicket': handleNavigate('queue'); break;
@@ -118,8 +119,7 @@ export default function App() {
     return <Login />;
   }
 
-  // Safety check
-  const allowedRoles = PAGE_PERMISSIONS[activePage];
+  const allowedRoles = (PAGE_PERMISSIONS as Record<string, string[]>)[activePage];
   const isAllowed = !allowedRoles || authStore.hasRole(...allowedRoles);
   const effectivePage = isAllowed ? activePage : 'dashboard';
 

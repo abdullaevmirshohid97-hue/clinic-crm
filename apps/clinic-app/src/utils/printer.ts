@@ -1,17 +1,31 @@
 import { db } from './db';
+import type { QueueReceiptData, ServiceReceiptData, PayoutReceiptData, ReceiptData } from '../types/clinic';
 
-export async function getClinicSettings() {
+interface ClinicSettings {
+  receiptWidth?: string;
+  clinicName?: string;
+  clinicAddress?: string;
+  clinicPhone?: string;
+  clinicSlogan?: string;
+  receiptHeader?: string;
+  receiptFooter?: string;
+  receiptNote?: string;
+  printerName?: string;
+  [key: string]: string | undefined;
+}
+
+export async function getClinicSettings(): Promise<ClinicSettings> {
   try {
-    const rows = await db.query('SELECT key, value FROM settings');
-    const settings = {};
-    rows.forEach(r => { settings[r.key] = r.value; });
+    const rows = await db.query<{ key: string; value: string }>('SELECT key, value FROM settings');
+    const settings: ClinicSettings = {};
+    rows.forEach((r) => { settings[r.key] = r.value; });
     return settings;
   } catch {
     return {};
   }
 }
 
-export function generateReceiptHTML(data, settings = {}) {
+export function generateReceiptHTML(data: ReceiptData, settings: ClinicSettings = {}) {
   const width = settings.receiptWidth || '80';
   const widthPx = width === '58' ? 220 : width === '110' ? 420 : 300;
 
@@ -40,7 +54,7 @@ ${settings.receiptHeader ? `<div class="center small" style="margin-top: 5px;">$
 
 <div class="line"></div>
 
-${data.type === 'queue' ? generateQueueReceipt(data) : data.type === 'payout' ? generatePayoutReceipt(data) : generateServiceReceipt(data)}
+${data.type === 'queue' ? generateQueueReceipt(data as QueueReceiptData) : data.type === 'payout' ? generatePayoutReceipt(data as PayoutReceiptData) : generateServiceReceipt(data as ServiceReceiptData)}
 
 <div class="line"></div>
 ${settings.receiptFooter ? `<div class="center small" style="margin-bottom: 5px;">${settings.receiptFooter.replace(/\n/g, '<br/>')}</div><div class="line"></div>` : ''}
@@ -52,7 +66,7 @@ ${settings.receiptNote ? `<div class="center" style="font-size: 9px; color: #888
 </body></html>`;
 }
 
-function generateQueueReceipt(data) {
+function generateQueueReceipt(data: QueueReceiptData) {
   return `
 <div class="center">
   <div class="small">NAVBAT CHEKI</div>
@@ -63,10 +77,10 @@ function generateQueueReceipt(data) {
 `;
 }
 
-function generateServiceReceipt(data) {
+function generateServiceReceipt(data: ServiceReceiptData) {
   let servicesHTML = '';
   if (data.services && data.services.length > 0) {
-    servicesHTML = data.services.map(s =>
+    servicesHTML = data.services.map((s) =>
       `<div class="row"><span>${s.name}</span><span>${Number(s.price).toLocaleString()} so'm</span></div>`
     ).join('');
   }
@@ -85,7 +99,7 @@ function generateServiceReceipt(data) {
 `;
 }
 
-function generatePayoutReceipt(data) {
+function generatePayoutReceipt(data: PayoutReceiptData) {
   return `
 <div class="center">
   <div class="bold" style="font-size: 14px;">SHIFOKORGA TO'LOV (BERILDI)</div>
@@ -101,12 +115,12 @@ function generatePayoutReceipt(data) {
 `;
 }
 
-export async function printReceipt(data) {
+export async function printReceipt(data: ReceiptData) {
   const settings = await getClinicSettings();
   const html = generateReceiptHTML(data, settings);
 
   if (window.electronAPI?.print?.receipt) {
-    const opts = {
+    const opts: ElectronPrintOptions = {
       silent: true,
       width: settings.receiptWidth === '58' ? 220 : settings.receiptWidth === '110' ? 420 : 300,
     };

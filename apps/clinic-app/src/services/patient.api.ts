@@ -4,19 +4,19 @@ import { api } from './api';
  * Patient API service.
  */
 export const patientApi = {
-  getAll(params = {}) {
+  getAll(params: Record<string, string> = {}) {
     return api.get('/patients', params);
   },
 
-  getById(id) {
+  getById(id: number | string) {
     return api.get(`/patients/${id}`);
   },
 
-  create(data) {
+  create(data: Record<string, unknown>) {
     return api.post('/patients', data);
   },
 
-  update(id, data) {
+  update(id: number | string, data: Record<string, unknown>) {
     return api.put(`/patients/${id}`, data);
   },
 };

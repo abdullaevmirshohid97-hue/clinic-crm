@@ -8,15 +8,15 @@ export const userApi = {
     return api.get('/users/staff');
   },
 
-  createStaff(data) {
+  createStaff(data: Record<string, unknown>) {
     return api.post('/users/staff', data);
   },
 
-  updateStaff(id, data) {
+  updateStaff(id: number | string, data: Record<string, unknown>) {
     return api.put(`/users/staff/${id}`, data);
   },
 
-  deleteStaff(id) {
+  deleteStaff(id: number | string) {
     return api.delete(`/users/staff/${id}`);
   },
 

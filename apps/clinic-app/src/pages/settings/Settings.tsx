@@ -4,6 +4,7 @@ import { useToast } from '../../components/ui/Toast';
 import Modal from '../../components/ui/Modal';
 import { db } from '../../utils/db';
 import { printReceipt } from '../../utils/printer';
+import type { ClinicDoctor, ClinicService, ClinicPermission, AuditLog, PrinterInfo } from '../../types/clinic';
 
 // ACL Roles mapped for translation / UI
 const ROLES = [
@@ -37,36 +38,35 @@ export default function Settings() {
     backupTime: '23:00', telegramBotToken: '', telegramChatId: ''
   });
 
-  const [doctors, setDoctors] = useState([]);
-  const [services, setServices] = useState([]);
-  const [permissions, setPermissions] = useState([]); // Array of {role, feature, canAccess}
+  const [doctors, setDoctors] = useState<ClinicDoctor[]>([]);
+  const [services, setServices] = useState<ClinicService[]>([]);
+  const [permissions, setPermissions] = useState<ClinicPermission[]>([]);
 
-  const [printers, setPrinters] = useState([]);
+  const [printers, setPrinters] = useState<PrinterInfo[]>([]);
   const [selectedPrinter, setSelectedPrinter] = useState('');
   const [printersLoading, setPrintersLoading] = useState(false);
   const [serviceViewMode, setServiceViewMode] = useState('list');
   const [qrPath, setQrPath] = useState('');
-  const [qrFile, setQrFile] = useState(null);
+  const [qrFile, setQrFile] = useState<File | null>(null);
   const [qrPreview, setQrPreview] = useState('');
 
   // Modals & Form states
   const [showDoctorModal, setShowDoctorModal] = useState(false);
   const [showServiceModal, setShowServiceModal] = useState(false);
-  const [editDoctor, setEditDoctor] = useState(null);
-  const [editService, setEditService] = useState(null);
+  const [editDoctor, setEditDoctor] = useState<ClinicDoctor | null>(null);
+  const [editService, setEditService] = useState<ClinicService | null>(null);
 
   const [doctorForm, setDoctorForm] = useState({ fullName: '', specialty: '', prefix: '', phone: '', role: 'doctor', commission_rate: 0 });
   const [serviceForm, setServiceForm] = useState({ name: '', price: '', category: '', duration: '' });
   const [sidebarEditMode, setSidebarEditMode] = useState(false);
   const [adminPin, setAdminPin] = useState('');
 
-  const [auditLogs, setAuditLogs] = useState([]);
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
 
   async function loadAuditLogs() {
     try {
-      const rows = await db.getAllRows('audit_log');
-      // local sort descending
-      rows.sort((a,b) => new Date(b.timestamp || b.createdAt).getTime() - new Date(a.timestamp || a.createdAt).getTime());
+      const rows = await db.getAllRows<AuditLog>('audit_log');
+      rows.sort((a, b) => new Date((b as AuditLog & { timestamp?: string }).timestamp || b.createdAt || '').getTime() - new Date((a as AuditLog & { timestamp?: string }).timestamp || a.createdAt || '').getTime());
       setAuditLogs(rows.slice(0, 100));
     } catch(e) { console.error('Audit Load Error', e); }
   }
@@ -75,8 +75,8 @@ export default function Settings() {
     if (!window.electronAPI?.print?.getPrinters) return;
     setPrintersLoading(true);
     try {
-      const result = await window.electronAPI.print.getPrinters();
-      if (result.success) setPrinters(result.data || []);
+      const result = await window.electronAPI?.print?.getPrinters?.();
+      if (result?.success) setPrinters((result.data as unknown as PrinterInfo[]) || []);
     } catch { /* ignore */ }
     setPrintersLoading(false);
   }, []);
@@ -85,9 +85,9 @@ export default function Settings() {
 
   async function loadAll() {
     try {
-      const settingsRows = await db.getAllRows('settings');
-      const obj = {};
-      settingsRows.forEach(r => { obj[r.key] = r.value; });
+      const settingsRows = await db.getAllRows<{ id: number; key: string; value: string }>('settings');
+      const obj: Record<string, string> = {};
+      settingsRows.forEach((r) => { obj[r.key] = r.value; });
       setClinic({
         clinicName: obj.clinicName || '',
         clinicAddress: obj.clinicAddress || '',
@@ -109,26 +109,25 @@ export default function Settings() {
       const savedPin = localStorage.getItem('clinic_admin_pin');
       setAdminPin(savedPin || '');
 
-      setDoctors(await db.getAllRows('doctors'));
-      
-      const allServices = await db.getAllRows('services');
-      // Sort in JS instead of DB
-      allServices.sort((a,b) => (a.orderIndex || 0) - (b.orderIndex || 0));
+      setDoctors(await db.getAllRows<ClinicDoctor>('doctors'));
+
+      const allServices = await db.getAllRows<ClinicService>('services');
+      allServices.sort((a, b) => (a.orderIndex || 0) - (b.orderIndex || 0));
       setServices(allServices);
-      
+
       try {
-        const perms = await db.getAllRows('permissions');
+        const perms = await db.getAllRows<ClinicPermission>('permissions');
         setPermissions(perms);
       } catch (e) {
         // Migration might not have run if previously opened
       }
-    } catch (err) {
-      toast.error(err.message);
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : String(err));
     }
   }
 
   // ==== SEARCH FILTERING ====
-  const showSection = (keywords) => {
+  const showSection = (keywords: string[]) => {
     if (!searchQuery.trim()) return true;
     const q = searchQuery.toLowerCase();
     return keywords.some(k => k.toLowerCase().includes(q));
@@ -141,8 +140,8 @@ export default function Settings() {
          await db.setSetting(key, value);
       }
       toast.success(t('common.success'));
-    } catch (err) {
-      toast.error(err.message);
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : String(err));
     }
   }
 
@@ -156,12 +155,12 @@ export default function Settings() {
     }
   }
 
-  async function savePrinter(name) {
+  async function savePrinter(name: string) {
     setSelectedPrinter(name);
     try {
       await db.setSetting('printerName', name);
       toast.success(t('common.success'));
-    } catch (err) { toast.error(err.message); }
+    } catch (err: unknown) { toast.error(err instanceof Error ? err.message : String(err)); }
   }
 
   async function handleTestPrint() {
@@ -176,13 +175,13 @@ export default function Settings() {
   }
 
   // QR Upload
-  function handleQrFileChange(e) {
+  function handleQrFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > 2 * 1024 * 1024) { toast.error('Fayl 2MB dan oshmasligi kerak'); return; }
     setQrFile(file);
     const reader = new FileReader();
-    reader.onload = (ev) => setQrPreview(ev.target?.result || '');
+    reader.onload = (ev) => setQrPreview((ev.target?.result as string) || '');
     reader.readAsDataURL(file);
   }
 
@@ -191,21 +190,20 @@ export default function Settings() {
     try {
       const reader = new FileReader();
       reader.onload = async (ev) => {
-        const base64 = ev.target?.result?.split(',')[1];
+        const base64 = (ev.target?.result as string)?.split(',')[1];
         if (!base64) return;
-        const result = await window.electronAPI.qr.upload(base64, qrFile.name);
-        if (result.success) {
-          setQrPath(result.path);
+        const result = await window.electronAPI?.qr?.upload?.(base64, qrFile!.name);
+        if (result?.success) {
+          setQrPath(result.path || '');
           toast.success('QR yuklandi!');
-        } else { toast.error(result.error); }
+        } else { toast.error(result?.error || ''); }
       };
-      reader.readAsDataURL(qrFile);
-    } catch (err) { toast.error(err.message); }
+      reader.readAsDataURL(qrFile!);
+    } catch (err: unknown) { toast.error(err instanceof Error ? err.message : String(err)); }
   }
 
   // Doctors & Services (CRUD)
-  /* ... skipping exhaustive implementations for brevity, copied from old Settings ... */
-  function openDoctorModal(doc = null) {
+  function openDoctorModal(doc: ClinicDoctor | null = null) {
     if (doc) { setEditDoctor(doc); setDoctorForm({ fullName: doc.fullName, specialty: doc.specialty || '', prefix: doc.prefix || '', phone: doc.phone || '', role: doc.role || 'doctor', commission_rate: doc.commission_rate || 0 }); }
     else { setEditDoctor(null); setDoctorForm({ fullName: '', specialty: '', prefix: '', phone: '', role: 'doctor', commission_rate: 0 }); }
     setShowDoctorModal(true);
@@ -216,11 +214,11 @@ export default function Settings() {
       if (editDoctor) await db.update('doctors', editDoctor.id, doctorForm);
       else await db.insert('doctors', doctorForm);
       setShowDoctorModal(false); await loadAll(); toast.success(t('common.success'));
-    } catch (err) { toast.error(err.message); }
+    } catch (err: unknown) { toast.error(err instanceof Error ? err.message : String(err)); }
   }
-  async function deleteDoctor(id) { try { await db.delete('doctors', id); await loadAll(); toast.success(t('common.success')); } catch (err) { toast.error(err.message); } }
+  async function deleteDoctor(id: number | string) { try { await db.delete('doctors', id); await loadAll(); toast.success(t('common.success')); } catch (err: unknown) { toast.error(err instanceof Error ? err.message : String(err)); } }
 
-  function openServiceModal(svc = null) {
+  function openServiceModal(svc: ClinicService | null = null) {
     if (svc) { setEditService(svc); setServiceForm({ name: svc.name, price: String(svc.price), category: svc.category || '', duration: svc.duration ? String(svc.duration) : '' }); }
     else { setEditService(null); setServiceForm({ name: '', price: '', category: '', duration: '' }); }
     setShowServiceModal(true);
@@ -232,25 +230,25 @@ export default function Settings() {
       if (editService) await db.update('services', editService.id, data);
       else await db.insert('services', { ...data, isActive: 1 });
       setShowServiceModal(false); await loadAll(); toast.success(t('common.success'));
-    } catch (err) { toast.error(err.message); }
+    } catch (err: unknown) { toast.error(err instanceof Error ? err.message : String(err)); }
   }
-  async function deleteService(id) { try { await db.delete('services', id); await loadAll(); toast.success(t('common.success')); } catch (err) { toast.error(err.message); } }
+  async function deleteService(id: number | string) { try { await db.delete('services', id); await loadAll(); toast.success(t('common.success')); } catch (err: unknown) { toast.error(err instanceof Error ? err.message : String(err)); } }
 
   // ACL Permissions
-  async function togglePermission(role, feature, currentState) {
+  async function togglePermission(role: string, feature: string, currentState: number | boolean) {
     const newVal = currentState ? 0 : 1;
     try {
       const exists = permissions.find(p => p.role === role && p.feature === feature);
       if (exists) {
-         await db.update('permissions', exists.id, { canAccess: newVal });
+         await db.update('permissions', exists.id ?? -1, { canAccess: newVal });
       } else {
          await db.insert('permissions', { role, feature, canAccess: newVal });
       }
       await loadAll();
-    } catch (e) { toast.error(e.message); }
+    } catch (e: unknown) { toast.error(e instanceof Error ? e.message : String(e)); }
   }
 
-  function checkPermission(role, feature) {
+  function checkPermission(role: string, feature: string) {
     if (role === 'admin') return true; // Admin has hardcoded access visually
     const p = permissions.find(p => p.role === role && p.feature === feature);
     return p ? p.canAccess === 1 : false;
@@ -263,13 +261,13 @@ export default function Settings() {
     }
     toast.info("Yuborilmoqda...");
     try {
-      const res = await window.electronAPI.invoke('backup:testTelegram', clinic.telegramBotToken, clinic.telegramChatId);
-      if (res.success) toast.success("Telegram'ga muvaffaqiyatli yuborildi!");
-      else toast.error("Xatolik: " + res.error);
-    } catch (e) { toast.error(e.message); }
+      const res = await window.electronAPI?.invoke?.('backup:testTelegram', clinic.telegramBotToken, clinic.telegramChatId);
+      if (res?.success) toast.success("Telegram'ga muvaffaqiyatli yuborildi!");
+      else toast.error("Xatolik: " + res?.error);
+    } catch (e: unknown) { toast.error(e instanceof Error ? e.message : String(e)); }
   }
 
-  function formatPrice(n) { return Number(n).toLocaleString('uz-UZ'); }
+  function formatPrice(n: number | string | null | undefined) { return Number(n ?? 0).toLocaleString('uz-UZ'); }
 
   return (
     <div className="page page-settings" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -457,7 +455,7 @@ export default function Settings() {
                          <label>Asosiy Printer</label>
                          <select className="form-input" value={selectedPrinter} onChange={e => savePrinter(e.target.value)}>
                            <option value="">- Tizim standart printeri -</option>
-                           {printers.map(p => <option key={p.name} value={p.name}>{p.displayName || p.name}</option>)}
+                           {printers.map((p) => <option key={p.name} value={p.name}>{p.displayName || p.name}</option>)}
                          </select>
                        </div>
                        <div className="form-group">
@@ -569,19 +567,19 @@ export default function Settings() {
                         <div style={{display:'flex', gap:10}}>
                           <button className="btn btn-secondary" onClick={async () => {
                             try {
-                              const result = await window.electronAPI.backup.export();
+                              const result = await window.electronAPI?.backup?.export?.() ?? { success: false, error: 'Not available' };
                               if (result.success) toast.success('Backup saqlandi: ' + result.path);
-                              else if (result.error !== 'Cancelled') toast.error(result.error);
-                            } catch (err) { toast.error(err.message); }
+                              else if (result.error !== 'Cancelled') toast.error(result.error || '');
+                            } catch (err: unknown) { toast.error(err instanceof Error ? err.message : String(err)); }
                           }}>📤 Hozirgi holatni eksport qilish</button>
                           <button className="btn btn-ghost" style={{color:'var(--accent-danger)'}} onClick={async () => {
                             try {
-                              const result = await window.electronAPI.backup.import();
+                              const result = await window.electronAPI?.backup?.import?.() ?? { success: false, error: 'Not available' };
                               if (result.success) {
                                 toast.success('Backup tiklandi! Dastur qayta yuklanadi...');
                                 setTimeout(() => window.location.reload(), 1500);
-                              } else if (result.error !== 'Cancelled') toast.error(result.error);
-                            } catch (err) { toast.error(err.message); }
+                              } else if (result.error !== 'Cancelled') toast.error(result.error || '');
+                            } catch (err: unknown) { toast.error(err instanceof Error ? err.message : String(err)); }
                           }}>📥 Tiklash (Barcha eski ma'lumotlar o'chadi)</button>
                         </div>
                       </div>
@@ -617,10 +615,10 @@ export default function Settings() {
                        <tbody>
                          {auditLogs.map((log, i) => (
                            <tr key={i}>
-                             <td style={{fontSize:12}}>{new Date(log.timestamp || log.createdAt).toLocaleString('uz-UZ')}</td>
-                             <td><span className="badge badge-outline">{log.userName || log.user_id || 'Tizim / Admin'}</span></td>
+                             <td style={{fontSize:12}}>{new Date(log.timestamp || log.createdAt || '').toLocaleString('uz-UZ')}</td>
+                             <td><span className="badge badge-outline">{log.userName || log.userId || 'Tizim / Admin'}</span></td>
                              <td style={{fontWeight:600, color: log.action==='delete'?'var(--accent-danger)':log.action==='update'?'var(--accent-warning)':'var(--accent-primary)'}}>{(log.action || '').toUpperCase()}</td>
-                             <td>{log.tableName || log.table_name || 'Noma\'lum'}</td>
+                             <td>{log.tableName || 'Noma\'lum'}</td>
                              <td style={{fontSize:12, whiteSpace:'pre-wrap'}}>{log.reason || log.details || '-'}</td>
                            </tr>
                          ))}

@@ -3,21 +3,22 @@ import { useTranslation } from '../i18n/LanguageContext';
 import { useToast } from '../components/ui/Toast';
 import Modal from '../components/ui/Modal';
 import { db } from '../utils/db';
+import type { QueueTicket, Doctor } from '../types/clinic';
 import { printReceipt } from '../utils/printer';
 
 export default function Queue() {
   const { t } = useTranslation();
   const toast = useToast();
 
-  const [tickets, setTickets] = useState([]);
-  const [doctors, setDoctors] = useState([]);
+  const [tickets, setTickets] = useState<QueueTicket[]>([]);
+  const [doctors, setDoctors] = useState<Doctor[]>([]);
   const [showNewTicket, setShowNewTicket] = useState(false);
-  const [selectedDoctor, setSelectedDoctor] = useState(null);
+  const [selectedDoctor, setSelectedDoctor] = useState<Doctor | null>(null);
   const [patientName, setPatientName] = useState('');
   const [filter, setFilter] = useState('all');
-  const [previewTicket, setPreviewTicket] = useState(null);
+  const [previewTicket, setPreviewTicket] = useState<Partial<QueueTicket> | null>(null);
   const [activeTab, setActiveTab] = useState('board'); // 'board' or 'journal'
-  const [history, setHistory] = useState([]);
+  const [history, setHistory] = useState<QueueTicket[]>([]);
   const [journalDate, setJournalDate] = useState(new Date().toISOString().split('T')[0]);
 
   useEffect(() => { loadData(); }, [journalDate]);
@@ -48,15 +49,15 @@ export default function Queue() {
       );
       
       if (activeTab === 'board') {
-        setTickets(rows);
+        setTickets(rows as QueueTicket[]);
       } else {
-        setHistory([...rows].reverse());
+        setHistory([...(rows as QueueTicket[])].reverse());
       }
 
       const docRows = await db.query('SELECT * FROM doctors WHERE isActive = 1 ORDER BY fullName');
-      setDoctors(docRows);
-    } catch (err) {
-      toast.error(err.message);
+      setDoctors(docRows as Doctor[]);
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : String(err));
     }
   }
 
@@ -83,8 +84,8 @@ export default function Queue() {
         patientName: patientName.trim()
       });
       setShowNewTicket(false);
-    } catch (err) {
-      toast.error(err.message);
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : String(err));
     }
   }
 
@@ -118,7 +119,7 @@ export default function Queue() {
           doctorName: previewTicket.doctorName,
           patientName: previewTicket.patientName
         });
-      } catch (err) {
+      } catch (err: unknown) {
         console.error("Print error:", err);
       }
 
@@ -127,21 +128,21 @@ export default function Queue() {
       setSelectedDoctor(null);
       setPatientName('');
       await loadData();
-    } catch (err) {
-      toast.error(err.message);
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : String(err));
     }
   }
 
-  async function updateStatus(ticketId, newStatus) {
+  async function updateStatus(ticketId: number | string, newStatus: string) {
     try {
       await db.update('queue', ticketId, { status: newStatus });
       await loadData();
-    } catch (err) {
-      toast.error(err.message);
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : String(err));
     }
   }
 
-  async function callNext(doctorId) {
+  async function callNext(doctorId: number | string) {
     const waiting = tickets.filter(t => t.doctorId === doctorId && t.status === 'waiting');
     if (waiting.length === 0) {
       toast.info('Navbatda bemor yo\'q');
@@ -155,7 +156,7 @@ export default function Queue() {
   const inProgress = tickets.filter(t => t.status === 'in_progress');
   const completed = tickets.filter(t => t.status === 'completed');
 
-  function TicketCard({ ticket, actions }) {
+  function TicketCard({ ticket, actions }: { ticket: QueueTicket; actions: React.ReactNode }) {
     return (
       <div className="queue-ticket">
         <div className="queue-ticket-number">{ticket.prefix}-{ticket.number}</div>
@@ -401,7 +402,7 @@ export default function Queue() {
               fontFamily: 'monospace'
             }}>
               <h2 style={{margin:0, fontSize: 24, fontWeight: 'bold'}}>КЛИНИКА</h2>
-              <div style={{margin: '15px 0', fontSize: 50, fontWeight: 'black', borderY: '2px solid #000'}}>
+              <div style={{margin: '15px 0', fontSize: 50, fontWeight: 'bold', borderTop: '2px solid #000', borderBottom: '2px solid #000'}}>
                 {previewTicket.prefix}-{previewTicket.number}
               </div>
               <div style={{fontSize: 16, marginBottom: 5}}>{previewTicket.doctorName}</div>

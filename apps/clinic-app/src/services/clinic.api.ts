@@ -29,19 +29,19 @@ export const analyticsApi = {
  * Queue API service.
  */
 export const queueApi = {
-  getByDoctor(doctorId) {
+  getByDoctor(doctorId: number | string) {
     return api.get(`/queue/${doctorId}`);
   },
 
-  addToQueue(data) {
+  addToQueue(data: Record<string, unknown>) {
     return api.post('/queue/add', data);
   },
 
-  callNext(doctorId) {
+  callNext(doctorId: number | string) {
     return api.post('/queue/next', { doctorId });
   },
 
-  complete(id) {
+  complete(id: number | string) {
     return api.post(`/queue/${id}/complete`);
   },
 };
@@ -54,15 +54,15 @@ export const roomApi = {
     return api.get('/rooms');
   },
 
-  getDetails(id) {
+  getDetails(id: number | string) {
     return api.get(`/rooms/${id}`);
   },
 
-  assignPatient(data) {
+  assignPatient(data: Record<string, unknown>) {
     return api.post('/rooms/assign', data);
   },
 
-  discharge(assignmentId) {
+  discharge(assignmentId: number | string) {
     return api.post(`/rooms/discharge/${assignmentId}`);
   },
 };

@@ -3,18 +3,19 @@ import { useTranslation } from '../../i18n/LanguageContext';
 import { useToast } from '../../components/ui/Toast';
 import { db } from '../../utils/db';
 import Modal from '../../components/ui/Modal';
+import type { TransactionRecord, ShiftRecord } from '../../types/clinic';
 
 export default function Cashier() {
   const { t } = useTranslation();
   const toast = useToast();
 
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
-  const [transactions, setTransactions] = useState([]);
+  const [transactions, setTransactions] = useState<TransactionRecord[]>([]);
   const [stats, setStats] = useState({ total: 0, cash: 0, card: 0, transfer: 0, debt: 0, expense: 0 });
   
   const [showExpenseModal, setShowExpenseModal] = useState(false);
   const [expenseForm, setExpenseForm] = useState({ amount: '', description: '', paymentType: 'cash' });
-  const [activeShift, setActiveShift] = useState(null);
+  const [activeShift, setActiveShift] = useState<ShiftRecord | null>(null);
 
   useEffect(() => {
     loadTransactions();
@@ -26,14 +27,14 @@ export default function Cashier() {
 
   async function loadActiveShift() {
     try {
-      const active = await db.query('SELECT * FROM shifts WHERE status = \'active\' ORDER BY id DESC LIMIT 1');
+      const active = await db.query<ShiftRecord>('SELECT * FROM shifts WHERE status = \'active\' ORDER BY id DESC LIMIT 1');
       if (active.length > 0) setActiveShift(active[0]);
-    } catch(e) {}
+    } catch(_e: unknown) {}
   }
 
   async function loadTransactions() {
     try {
-      const rows = await db.query(`
+      const rows = await db.query<TransactionRecord>(`
         SELECT t.*, 
                p.fullName as patientNameStr, p.phone as patientPhone,
                d.fullName as doctorNameStr, 
@@ -69,8 +70,8 @@ export default function Cashier() {
         }
       });
       setStats({ total, cash, card, transfer, debt, expense });
-    } catch (err) {
-      toast.error(err.message);
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : String(err));
     }
   }
 
@@ -88,16 +89,16 @@ export default function Cashier() {
       setShowExpenseModal(false);
       setExpenseForm({ amount: '', description: '', paymentType: 'cash' });
       loadTransactions();
-    } catch (err) {
-      toast.error(err.message);
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : String(err));
     }
   }
 
-  function formatPrice(n) {
+  function formatPrice(n: number | string | null | undefined) {
     return Number(n || 0).toLocaleString('uz-UZ');
   }
 
-  function getBadgeColor(type) {
+  function getBadgeColor(type: string) {
     switch (type) {
       case 'cash': return 'var(--accent-success)';
       case 'card': return 'var(--accent-info)';
@@ -139,35 +140,35 @@ export default function Cashier() {
 
         {/* Detailed Stats */}
         <div className="stats-grid" style={{marginBottom: 20}}>
-          <div className="card glass-card stat-card" style={{'--card-accent':'var(--accent-success)'}}>
+          <div className="card glass-card stat-card" style={{'--card-accent':'var(--accent-success)'} as React.CSSProperties}>
             <div className="stat-icon">💵</div>
             <div className="stat-info">
               <span className="stat-value">{formatPrice(stats.cash)}</span>
               <span className="stat-label">Naqd tushum</span>
             </div>
           </div>
-          <div className="card glass-card stat-card" style={{'--card-accent':'var(--accent-info)'}}>
+          <div className="card glass-card stat-card" style={{'--card-accent':'var(--accent-info)'} as React.CSSProperties}>
             <div className="stat-icon">💳</div>
             <div className="stat-info">
               <span className="stat-value">{formatPrice(stats.card)}</span>
               <span className="stat-label">Plastik Karta</span>
             </div>
           </div>
-          <div className="card glass-card stat-card" style={{'--card-accent':'var(--accent-primary)'}}>
+          <div className="card glass-card stat-card" style={{'--card-accent':'var(--accent-primary)'} as React.CSSProperties}>
             <div className="stat-icon">🔄</div>
             <div className="stat-info">
               <span className="stat-value">{formatPrice(stats.transfer)}</span>
               <span className="stat-label">Click/O'tkazma</span>
             </div>
           </div>
-          <div className="card glass-card stat-card" style={{'--card-accent':'var(--accent-danger)'}}>
+          <div className="card glass-card stat-card" style={{'--card-accent':'var(--accent-danger)'} as React.CSSProperties}>
             <div className="stat-icon">📝</div>
             <div className="stat-info">
               <span className="stat-value">{formatPrice(stats.debt)}</span>
               <span className="stat-label">Berilgan Qarzlar</span>
             </div>
           </div>
-          <div className="card glass-card stat-card" style={{'--card-accent':'var(--accent-warning)'}}>
+          <div className="card glass-card stat-card" style={{'--card-accent':'var(--accent-warning)'} as React.CSSProperties}>
             <div className="stat-icon">💸</div>
             <div className="stat-info">
               <span className="stat-value">{formatPrice(stats.expense)}</span>
@@ -204,9 +205,9 @@ export default function Cashier() {
                     <tr><td colSpan={12} style={{textAlign:'center', padding:40, color:'var(--text-muted)'}}>Hech qanday tranzaksiya mavjud emas.</td></tr>
                   ) : transactions.map(t => (
                     <tr key={t.id} style={{background: t.type === 'expense' ? 'rgba(255, 69, 58, 0.05)' : t.type === 'payout' ? 'rgba(10, 132, 255, 0.05)' : 'transparent'}}>
-                      <td>{new Date(t.createdAt).toLocaleTimeString('uz-UZ', {hour:'2-digit', minute:'2-digit', second:'2-digit'})}</td>
+                      <td>{new Date(t.createdAt ?? '').toLocaleTimeString('uz-UZ', {hour:'2-digit', minute:'2-digit', second:'2-digit'})}</td>
                       <td>
-                        <span style={{fontWeight:600, color: getBadgeColor(t.paymentType)}}>{t.paymentType.toUpperCase()}</span>
+                        <span style={{fontWeight:600, color: getBadgeColor(t.paymentType ?? '')}}>{(t.paymentType ?? '').toUpperCase()}</span>
                       </td>
                       <td>
                         <div style={{fontWeight:600}}>{t.patient_name || t.patientNameStr || '—'}</div>

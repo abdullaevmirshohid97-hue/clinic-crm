@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from '../i18n/LanguageContext';
 import { db } from '../utils/db';
+import type { LabTest, LabTestTemplate, LabTestTemplateField, LabPatient, TemplateFieldDraft, LabResultMap, PrintResultField } from '../types/clinic';
 import { useToast } from '../components/ui/Toast';
 import Modal from '../components/ui/Modal';
 
@@ -8,9 +9,9 @@ export default function Laboratory() {
   const { t } = useTranslation();
   const toast = useToast();
   const [activeTab, setActiveTab] = useState('workflow'); // workflow, templates
-  const [tests, setTests] = useState([]);
-  const [templates, setTemplates] = useState([]);
-  const [patients, setPatients] = useState([]);
+  const [tests, setTests] = useState<LabTest[]>([]);
+  const [templates, setTemplates] = useState<LabTestTemplate[]>([]);
+  const [patients, setPatients] = useState<LabPatient[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Modals
@@ -18,11 +19,11 @@ export default function Laboratory() {
   const [testForm, setTestForm] = useState({ patientId: '', testName: '', isUrgent: false });
 
   const [showTemplateModal, setShowTemplateModal] = useState(false);
-  const [templateForm, setTemplateForm] = useState({ id: null, testName: '', category: '', price: 0, fields: [] });
+  const [templateForm, setTemplateForm] = useState<{ id: number | null; testName: string; category: string; price: number; fields: TemplateFieldDraft[] }>({ id: null, testName: '', category: '', price: 0, fields: [] });
 
   const [showResultModal, setShowResultModal] = useState(false);
-  const [activeTest, setActiveTest] = useState(null);
-  const [resultData, setResultData] = useState({}); // { fieldName: value }
+  const [activeTest, setActiveTest] = useState<LabTest | null>(null);
+  const [resultData, setResultData] = useState<LabResultMap>({});
 
   useEffect(() => { loadData(); }, [activeTab]);
 
@@ -30,8 +31,9 @@ export default function Laboratory() {
   useEffect(() => {
     let buffer = '';
     let lastKeyTime = Date.now();
-    const handleKeyDown = (e) => {
-      if (['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName) || showResultModal) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) || showResultModal) return;
       const currentTime = Date.now();
       if (currentTime - lastKeyTime > 50) buffer = ''; // slow = human typing
       lastKeyTime = currentTime;
@@ -65,31 +67,31 @@ export default function Laboratory() {
           LEFT JOIN doctors d ON lt.orderedBy = d.id
           ORDER BY lt.createdAt DESC
         `);
-        setTests(ts);
-        const pt = await db.query("SELECT * FROM patients ORDER BY fullName ASC");
+        setTests(ts as LabTest[]);
+        const pt = await db.query<LabPatient>("SELECT * FROM patients ORDER BY fullName ASC");
         setPatients(pt);
       }
       // Always load templates
       const tpls = await db.query("SELECT * FROM laboratory_templates");
-      setTemplates(tpls);
-    } catch (e) { toast.error(e.message); }
+      setTemplates(tpls as LabTestTemplate[]);
+    } catch (e: unknown) { toast.error(e instanceof Error ? e.message : String(e)); }
     setLoading(false);
   }
 
   // --- Templates ---
   function addTemplateField() {
     setTemplateForm({
-      ...templateForm, 
-      fields: [...templateForm.fields, { id: Date.now(), name: '', type: 'number', formula: '', options: '', minM: '', maxM: '', minF: '', maxF: '', panicL: '', panicH: '', unit: '' }]
+      ...templateForm,
+      fields: [...templateForm.fields, { id: Date.now(), name: '', type: 'number', formula: '', options: '', minM: 0, maxM: 0, minF: 0, maxF: 0, panicL: '', panicH: '', unit: '' }]
     });
   }
-  function updateTemplateField(id, key, val) {
+  function updateTemplateField(id: number, key: string, val: string | number | boolean) {
     setTemplateForm({
       ...templateForm,
       fields: templateForm.fields.map(f => f.id === id ? { ...f, [key]: val } : f)
     });
   }
-  function removeTemplateField(id) {
+  function removeTemplateField(id: number) {
     setTemplateForm({
       ...templateForm,
       fields: templateForm.fields.filter(f => f.id !== id)
@@ -113,12 +115,12 @@ export default function Laboratory() {
       }
       setShowTemplateModal(false);
       loadData();
-    } catch (e) { toast.error(e.message); }
+    } catch (e: unknown) { toast.error(e instanceof Error ? e.message : String(e)); }
   }
 
-  function openEditTemplate(tpl) {
-    let parsedFields = [];
-    try { parsedFields = JSON.parse(tpl.fieldsJson || '[]'); } catch(e){}
+  function openEditTemplate(tpl: LabTestTemplate) {
+    let parsedFields: TemplateFieldDraft[] = [];
+    try { parsedFields = JSON.parse(tpl.fieldsJson || '[]') as TemplateFieldDraft[]; } catch(_e){}
     setTemplateForm({
       id: tpl.id, testName: tpl.testName, category: tpl.category || '', price: tpl.price || 0, fields: parsedFields
     });
@@ -141,44 +143,42 @@ export default function Laboratory() {
       setShowTestModal(false);
       toast.success("Tahlil qo'shildi");
       loadData();
-    } catch (e) { toast.error(e.message); }
+    } catch (e: unknown) { toast.error(e instanceof Error ? e.message : String(e)); }
   }
 
-  async function updateTestStatus(id, newStatus) {
+  async function updateTestStatus(id: number | string, newStatus: string) {
     try {
-      const q = newStatus === 'ready' 
-        ? "UPDATE laboratory_tests SET status=?, completedAt=datetime('now','localtime') WHERE id=?" 
+      const q = newStatus === 'ready'
+        ? "UPDATE laboratory_tests SET status=?, completedAt=datetime('now','localtime') WHERE id=?"
         : "UPDATE laboratory_tests SET status=? WHERE id=?";
       await db.run(q, [newStatus, id]);
       loadData();
-    } catch (e) { toast.error(e.message); }
+    } catch (e: unknown) { toast.error(e instanceof Error ? e.message : String(e)); }
   }
 
-  async function openWriteResult(tst) {
+  async function openWriteResult(tst: LabTest) {
     setActiveTest(tst);
-    let existingData = {};
-    try { 
-      const resultObj = JSON.parse(tst.resultJson || '{}');
+    const existingData: LabResultMap = {};
+    try {
+      const resultObj = JSON.parse(tst.resultJson || '{}') as { fields?: Array<{ name: string; value?: string }>; legacy?: string };
       if (resultObj.fields) {
-        resultObj.fields.forEach(f => { existingData[f.name] = f.value; });
+        resultObj.fields.forEach((f) => { existingData[f.name] = f.value ?? ''; });
       }
       if (resultObj.legacy) existingData['__legacy'] = resultObj.legacy;
-    } catch(e){}
-    
-    // Check if simple string exists from older models
+    } catch(_e){}
+
     if (tst.resultValue && Object.keys(existingData).length === 0) {
       existingData['__legacy'] = tst.resultValue;
     }
-    
-    // Fetch Historical Result for Delta Checks
-    let historicalData = [];
+
+    let historicalData: LabTestTemplateField[] = [];
     try {
       const hist = await db.query(`SELECT resultJson FROM laboratory_tests WHERE patientId=? AND testName=? AND id!=? AND status='ready' ORDER BY createdAt DESC LIMIT 1`, [tst.patientId, tst.testName, tst.id]);
       if (hist && hist.length > 0) {
-        historicalData = JSON.parse(hist[0].resultJson || '{}')?.fields || [];
+        historicalData = (JSON.parse(String(hist[0].resultJson) || '{}') as { fields?: LabTestTemplateField[] })?.fields || [];
       }
-    } catch(e) {}
-    
+    } catch(_e) {}
+
     setResultData({ ...existingData, __historicalFields: historicalData });
     setShowResultModal(true);
   }
@@ -187,21 +187,22 @@ export default function Laboratory() {
     if(!activeTest) return;
     try {
       const tpl = templates.find(x => x.testName === activeTest.testName);
-      let tplFields = [];
-      if(tpl) try { tplFields = JSON.parse(tpl.fieldsJson || '[]'); } catch(e){}
+      let tplFields: TemplateFieldDraft[] = [];
+      if(tpl) try { tplFields = JSON.parse(tpl.fieldsJson || '[]') as TemplateFieldDraft[]; } catch(_e){}
 
-      const processedResults = [];
-      
+      const processedResults: Array<{ name: string; value: string; flag: string; unit: string; min: string; max: string }> = [];
+
       // First pass: Resolve Formulas for the final save
-      const resolvedData = { ...resultData };
-      tplFields.forEach(f => {
+      const resolvedData: LabResultMap = { ...resultData };
+      tplFields.forEach((f) => {
         if (f.type === 'formula' && f.formula) {
            try {
               let expr = f.formula;
-              tplFields.forEach(otherF => {
+              tplFields.forEach((otherF) => {
                  if (otherF.name !== f.name) {
-                    const otherVal = parseFloat(resolvedData[otherF.name] || 0);
-                    expr = expr.replace(new RegExp(`\\[${otherF.name}\\]`, 'g'), otherVal);
+                    const rawVal = resolvedData[otherF.name];
+                    const otherVal = parseFloat(Array.isArray(rawVal) ? '0' : String(rawVal ?? 0));
+                    expr = expr.replace(new RegExp(`\\[${otherF.name}\\]`, 'g'), String(otherVal));
                  }
               });
               // Basic sanitize and eval
@@ -212,7 +213,8 @@ export default function Laboratory() {
       });
 
       for (const fDef of tplFields) {
-          const val = resolvedData[fDef.name] || '';
+          const rawFieldVal = resolvedData[fDef.name];
+          const val = Array.isArray(rawFieldVal) ? '' : String(rawFieldVal ?? '');
           let flag = 'N'; 
           let min = '', max = '';
           
@@ -220,16 +222,16 @@ export default function Laboratory() {
              const vNum = parseFloat(val);
              const gender = activeTest?.gender?.toLowerCase() || '';
              
-             min = (gender === 'ayol' || gender === 'f' || gender === 'female') ? fDef.minF : fDef.minM;
-             max = (gender === 'ayol' || gender === 'f' || gender === 'female') ? fDef.maxF : fDef.maxM;
-             
-             min = min || fDef.minM || fDef.minF || '';
-             max = max || fDef.maxM || fDef.maxF || '';
+             min = String((gender === 'ayol' || gender === 'f' || gender === 'female') ? (fDef.minF ?? '') : (fDef.minM ?? ''));
+             max = String((gender === 'ayol' || gender === 'f' || gender === 'female') ? (fDef.maxF ?? '') : (fDef.maxM ?? ''));
+
+             min = min || String(fDef.minM ?? '') || String(fDef.minF ?? '') || '';
+             max = max || String(fDef.maxM ?? '') || String(fDef.maxF ?? '') || '';
 
              const vMin = parseFloat(min);
              const vMax = parseFloat(max);
-             const pLow = parseFloat(fDef.panicL);
-             const pHigh = parseFloat(fDef.panicH);
+             const pLow = parseFloat(fDef.panicL ?? '');
+             const pHigh = parseFloat(fDef.panicH ?? '');
 
              if (!isNaN(vNum)) {
                 if (!isNaN(pLow) && vNum <= pLow) flag = 'LL';
@@ -265,14 +267,15 @@ export default function Laboratory() {
       toast.success("Natija saqlandi!");
       setShowResultModal(false);
       loadData();
-    } catch (e) { toast.error(e.message); }
+    } catch (e: unknown) { toast.error(e instanceof Error ? e.message : String(e)); }
   }
 
-  function printPDF(tst) {
-    let resObj = { fields: [], legacy: '' };
+  function printPDF(tst: LabTest) {
+    let resObj: { fields: PrintResultField[]; legacy: string } = { fields: [], legacy: '' };
     try { resObj = JSON.parse(tst.resultJson || '{"fields":[]}'); } catch(e){}
 
     const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
     printWindow.document.write(`
       <html>
         <head>
@@ -371,8 +374,8 @@ export default function Laboratory() {
   ];
 
   const activeTestTpl = templates.find(x => x.testName === activeTest?.testName);
-  let tplFields = [];
-  if (activeTestTpl) { try { tplFields = JSON.parse(activeTestTpl.fieldsJson || '[]'); } catch(e){} }
+  let tplFields: TemplateFieldDraft[] = [];
+  if (activeTestTpl) { try { tplFields = JSON.parse(activeTestTpl.fieldsJson || '[]') as TemplateFieldDraft[]; } catch(_e){} }
 
   return (
     <div className="page page-laboratory">
@@ -664,47 +667,50 @@ export default function Laboratory() {
                           </tr>
                        </thead>
                        <tbody>
-                          {tplFields.map(f => {
-                             const val = resultData[f.name] || '';
-                             
+                          {tplFields.map((f) => {
+                             const rawVal = resultData[f.name];
+                             const val: string = Array.isArray(rawVal) ? '' : String(rawVal ?? '');
+
                              // Formula calculation logic for real-time display
                              let currentVal = val;
                              if (f.type === 'formula' && f.formula) {
                                 try {
                                    let expr = f.formula;
-                                   tplFields.forEach(otherF => {
+                                   tplFields.forEach((otherF) => {
                                       if (otherF.name !== f.name) {
-                                         const otherVal = parseFloat(resultData[otherF.name] || 0);
-                                         expr = expr.replace(new RegExp(`\\[${otherF.name}\\]`, 'g'), otherVal);
+                                         const rv = resultData[otherF.name];
+                                         const otherVal = parseFloat(Array.isArray(rv) ? '0' : String(rv ?? 0));
+                                         expr = expr.replace(new RegExp(`\\[${otherF.name}\\]`, 'g'), String(otherVal));
                                       }
                                    });
                                    const calculated = eval(expr.replace(/[^-+*/().0-9]/g, ''));
                                    if (!isNaN(calculated)) currentVal = calculated.toFixed(2);
-                                } catch(e) { currentVal = 'Err'; }
+                                } catch(_e) { currentVal = 'Err'; }
                              }
 
                              const vNum = parseFloat(currentVal);
                              const gender = activeTest?.gender?.toLowerCase() || '';
-                             const min = parseFloat((gender === 'ayol' || gender === 'f' || gender === 'female') ? f.minF || f.minM || f.min : f.minM || f.minF || f.min);
-                             const max = parseFloat((gender === 'ayol' || gender === 'f' || gender === 'female') ? f.maxF || f.maxM || f.max : f.maxM || f.maxF || f.max);
-                             
+                             const min = parseFloat(String((gender === 'ayol' || gender === 'f' || gender === 'female') ? (f.minF ?? f.minM ?? f.min ?? '') : (f.minM ?? f.minF ?? f.min ?? '')));
+                             const max = parseFloat(String((gender === 'ayol' || gender === 'f' || gender === 'female') ? (f.maxF ?? f.maxM ?? f.max ?? '') : (f.maxM ?? f.maxF ?? f.max ?? '')));
+
                              let flag = 'N';
                              if (currentVal !== '' && !isNaN(vNum)) {
                                 if ((!isNaN(min) && vNum < min)) flag = 'L';
                                 if ((!isNaN(max) && vNum > max)) flag = 'H';
                              }
-                             
+
+                             const historicalFields = Array.isArray(resultData['__historicalFields'])
+                               ? (resultData['__historicalFields'] as LabTestTemplateField[])
+                               : [];
                              let deltaHtml = null;
-                             if(resultData['__historicalFields']) {
-                                const hF = resultData['__historicalFields'].find(hf => hf.name === f.name);
-                                if(hF && hF.value && !isNaN(parseFloat(hF.value))) {
-                                    const hNum = parseFloat(hF.value);
-                                    if(!isNaN(vNum)) {
-                                       if(vNum > hNum) deltaHtml = <span className="text-danger" style={{fontWeight:'bold'}}>↑ O'sgan ({hF.value})</span>;
-                                       else if(vNum < hNum) deltaHtml = <span className="text-success" style={{fontWeight:'bold'}}>↓ Tushgan ({hF.value})</span>;
-                                       else deltaHtml = <span className="text-muted">= O'zgarmagan</span>;
-                                    }
-                                }
+                             const hF = historicalFields.find((hf) => hf.name === f.name) as (LabTestTemplateField & { value?: string }) | undefined;
+                             if(hF && hF.value && !isNaN(parseFloat(hF.value))) {
+                                 const hNum = parseFloat(hF.value);
+                                 if(!isNaN(vNum)) {
+                                    if(vNum > hNum) deltaHtml = <span className="text-danger" style={{fontWeight:'bold'}}>↑ O'sgan ({hF.value})</span>;
+                                    else if(vNum < hNum) deltaHtml = <span className="text-success" style={{fontWeight:'bold'}}>↓ Tushgan ({hF.value})</span>;
+                                    else deltaHtml = <span className="text-muted">= O'zgarmagan</span>;
+                                 }
                              }
 
                              return (
@@ -714,18 +720,18 @@ export default function Laboratory() {
                                     {f.type === 'select' ? (
                                        <select className="form-input" value={val} onChange={e=>setResultData({...resultData, [f.name]: e.target.value})}>
                                           <option value="">Tanlang...</option>
-                                          {(f.options || '').split(',').map(opt => <option key={opt.trim()} value={opt.trim()}>{opt.trim()}</option>)}
+                                          {(f.options || '').split(',').map((opt: string) => <option key={opt.trim()} value={opt.trim()}>{opt.trim()}</option>)}
                                        </select>
                                     ) : f.type === 'text' ? (
                                        <input type="text" className="form-input" value={val} onChange={e=>setResultData({...resultData, [f.name]: e.target.value})} />
                                     ) : f.type === 'formula' ? (
                                        <div style={{fontWeight:800, fontSize:16, color:'var(--accent-primary)'}}>{currentVal} {f.unit}</div>
                                     ) : (
-                                       <input 
+                                       <input
                                          type="number" step="0.01" className="form-input" style={{borderColor: flag!=='N' ? 'var(--accent-danger)' : '', background: flag!=='N' ? 'rgba(220,38,38,0.1)' : ''}}
-                                         value={val} 
-                                         onChange={e=>setResultData({...resultData, [f.name]: e.target.value})} 
-                                         placeholder="Raqam.." 
+                                         value={val}
+                                         onChange={e=>setResultData({...resultData, [f.name]: e.target.value})}
+                                         placeholder="Raqam.."
                                        />
                                     )}
                                     {flag==='L' && <span style={{color:'var(--accent-warning)', fontSize:12, fontWeight:'bold', marginLeft:5}}>⚠️ PAST</span>}
@@ -744,7 +750,7 @@ export default function Laboratory() {
               ) : (
                  <div className="form-group mt-2">
                     <label>Strukturavsiz (Matnlik) Natija / Izoh</label>
-                    <textarea className="form-input" rows="6" value={resultData['__legacy'] || ''} onChange={e=>setResultData({...resultData, '__legacy': e.target.value})} placeholder="Xulosa..."></textarea>
+                    <textarea className="form-input" rows={6} value={(() => { const v = resultData['__legacy']; return Array.isArray(v) ? '' : String(v ?? ''); })()} onChange={e=>setResultData({...resultData, '__legacy': e.target.value})} placeholder="Xulosa..."></textarea>
                  </div>
               )}
            </div>

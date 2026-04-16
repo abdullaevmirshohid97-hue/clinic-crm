@@ -16,7 +16,7 @@ async function getAuthHeaders() {
   };
 }
 
-async function handleResponse(res, url, method) {
+async function handleResponse(res: Response, url: string, method: string) {
   const data = await res.json();
   const timestamp = new Date().toLocaleTimeString();
   
@@ -30,7 +30,7 @@ async function handleResponse(res, url, method) {
 }
 
 export const api = {
-  async get(path, params = {}) {
+  async get(path: string, params: Record<string, string> = {}) {
     const query = new URLSearchParams(params).toString();
     const url = `${API_BASE}${path}${query ? '?' + query : ''}`;
     const headers = await getAuthHeaders();
@@ -38,7 +38,7 @@ export const api = {
     return handleResponse(res, url, 'GET');
   },
 
-  async post(path, body = {}) {
+  async post(path: string, body: Record<string, unknown> = {}) {
     const headers = await getAuthHeaders();
     const res = await fetch(`${API_BASE}${path}`, {
       method: 'POST',
@@ -48,7 +48,7 @@ export const api = {
     return handleResponse(res, `${API_BASE}${path}`, 'POST');
   },
 
-  async put(path, body = {}) {
+  async put(path: string, body: Record<string, unknown> = {}) {
     const headers = await getAuthHeaders();
     const res = await fetch(`${API_BASE}${path}`, {
       method: 'PUT',
@@ -58,7 +58,7 @@ export const api = {
     return handleResponse(res, `${API_BASE}${path}`, 'PUT');
   },
 
-  async delete(path) {
+  async delete(path: string) {
     const headers = await getAuthHeaders();
     const res = await fetch(`${API_BASE}${path}`, {
       method: 'DELETE',

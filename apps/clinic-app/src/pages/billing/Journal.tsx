@@ -3,31 +3,32 @@ import { useTranslation } from '../../i18n/LanguageContext'
 import { useToast } from '../../components/ui/Toast'
 import Modal from '../../components/ui/Modal'
 import { db } from '../../utils/db'
+import type { JournalEntry } from '../../types/clinic'
 
-export default function JournalPage({ onNavigate }){
+export default function JournalPage({ onNavigate }: { onNavigate?: (page: string) => void }){
   const { t } = useTranslation()
   const toast = useToast()
-  const [entries, setEntries] = useState([])
+  const [entries, setEntries] = useState<JournalEntry[]>([])
   const [loading, setLoading] = useState(false)
   const [filters, setFilters] = useState({ from:'', to:'', search:'', paymentType:'', category:'', minAmount:'', maxAmount:'' })
   const [stats, setStats] = useState({ 
-    daily:{revenue:0, debt:0, expense:0}, 
-    weekly:{revenue:0, debt:0, expense:0}, 
-    monthly:{revenue:0, debt:0, expense:0} 
+    daily:{revenue:0, debt:0, expense:0, recovered:0}, 
+    weekly:{revenue:0, debt:0, expense:0, recovered:0}, 
+    monthly:{revenue:0, debt:0, expense:0, recovered:0} 
   })
 
   // Modals
-  const [editingEntry, setEditingEntry] = useState(null)
+  const [editingEntry, setEditingEntry] = useState<JournalEntry | null>(null)
   const [editForm, setEditForm] = useState({ amount: '', discount: '', paymentType: 'cash' })
   const [showExpenseModal, setShowExpenseModal] = useState(false)
   const [expenseForm, setExpenseForm] = useState({ category: 'Xo\'jalik', amount: '', description: '' })
-  const [payingDebt, setPayingDebt] = useState(null)
+  const [payingDebt, setPayingDebt] = useState<JournalEntry | null>(null)
   const [debtPayForm, setDebtPayForm] = useState({ paymentType: 'cash' })
 
-  const [expandedPatients, setExpandedPatients] = useState({})
+  const [expandedPatients, setExpandedPatients] = useState<Record<string, boolean>>({})
   const [showFilters, setShowFilters] = useState(false)
 
-  function toggleExpand(groupKey) {
+  function toggleExpand(groupKey: string) {
     setExpandedPatients(prev => ({ ...prev, [groupKey]: !prev[groupKey] }))
   }
 
@@ -45,7 +46,7 @@ export default function JournalPage({ onNavigate }){
     if (showLoading) setLoading(true)
     try{
       const res = await window?.electronAPI?.journal?.getComprehensive?.(filters)
-      if (res?.success) setEntries(res.data || [])
+      if (res?.success) setEntries((res.data || []) as JournalEntry[])
     } catch(err){ console.error(err) }
     if (showLoading) setLoading(false)
   }
@@ -53,11 +54,11 @@ export default function JournalPage({ onNavigate }){
   async function loadStats(){
     try{
       const res = await window?.electronAPI?.journal?.getFinancialStats?.()
-      if (res?.success) setStats(res)
+      if (res?.success && res.data) setStats(res.data as typeof stats)
     } catch(err){ console.error(err) }
   }
 
-  const formatPrice = (n) => {
+  const formatPrice = (n: number | string | null | undefined) => {
     return Number(n || 0).toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ")
   }
 
@@ -80,49 +81,49 @@ export default function JournalPage({ onNavigate }){
   }, [filteredEntries])
 
   const groupedEntries = useMemo(() => {
-    const groups = {}
-    const singles = []
-    filteredEntries.forEach(e => {
+    const groups: Record<string, JournalEntry[]> = {}
+    const singles: JournalEntry[] = []
+    filteredEntries.forEach((e) => {
       const key = e.patient_name + '|' + (e.date || '').substring(0, 10)
       if (!e.patient_name || e.type === 'expense' || e.type === 'payout') { singles.push({ ...e, _group: null }); return }
       if (!groups[key]) groups[key] = []
       groups[key].push(e)
     })
-    const result = []
+    const result: JournalEntry[] = []
     Object.entries(groups).forEach(([key, items]) => {
       if (items.length > 1) {
-        const totalAmount = items.reduce((a, i) => a + (Number(i.amount) || 0), 0)
+        const totalAmount = items.reduce((a: number, i: JournalEntry) => a + (Number(i.amount) || 0), 0)
         result.push({ ...items[0], _group: key, _children: items, _groupTotal: totalAmount, _groupCount: items.length })
       } else { result.push({ ...items[0], _group: null }) }
     })
     result.push(...singles)
-    result.sort((a, b) => new Date(b.date) - new Date(a.date))
+    result.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
     return result
   }, [filteredEntries])
 
   async function handleAddExpense() {
     if (!expenseForm.amount) return toast.error('Summani kiriting')
     try {
-      const res = await window.electronAPI.journal.addExpense(expenseForm.category, expenseForm.amount, expenseForm.description)
-      if (res.success) {
+      const res = await window.electronAPI?.journal?.addExpense?.(expenseForm.category, expenseForm.amount, expenseForm.description)
+      if (res?.success) {
         toast.success('Xarajat saqlandi')
         setShowExpenseModal(false)
         setExpenseForm({ category: 'Xo\'jalik', amount: '', description: '' })
         loadEntries(false); loadStats()
       }
-    } catch (e) { toast.error(e.message) }
+    } catch (e: unknown) { toast.error(e instanceof Error ? e.message : String(e)) }
   }
 
   async function handlePayDebt() {
     if (!payingDebt) return
     try {
-      const res = await window.electronAPI.journal.payDebt(payingDebt.type, payingDebt.id, debtPayForm.paymentType, payingDebt.amount)
-      if (res.success) {
+      const res = await window.electronAPI?.journal?.payDebt?.(payingDebt.type, payingDebt.id, debtPayForm.paymentType, payingDebt.amount)
+      if (res?.success) {
         toast.success('Qarz yopildi')
         setPayingDebt(null)
         loadEntries(false); loadStats()
       }
-    } catch (e) { toast.error(e.message) }
+    } catch (e: unknown) { toast.error(e instanceof Error ? e.message : String(e)) }
   }
 
   async function saveEdit() {
@@ -136,7 +137,7 @@ export default function JournalPage({ onNavigate }){
         setEditingEntry(null)
         loadEntries(false); loadStats()
       }
-    } catch (e) { toast.error(e.message) }
+    } catch (e: unknown) { toast.error(e instanceof Error ? e.message : String(e)) }
   }
 
   async function handleZReport() {
@@ -160,13 +161,13 @@ export default function JournalPage({ onNavigate }){
       </div>
     `
     try {
-      await window.electronAPI.print.receipt(summary, { silent: false })
+      await window.electronAPI?.print?.receipt?.(summary, { silent: false })
       toast.success('Smena yopildi va hisobot chiqarildi')
       // Optional: window.electronAPI.journal.closeShift(...)
-    } catch (e) { toast.error(e.message) }
+    } catch (e: unknown) { toast.error(e instanceof Error ? e.message : String(e)) }
   }
 
-  function getRowStyle(e) {
+  function getRowStyle(e: JournalEntry) {
     if (e.type === 'expense') return { background: 'rgba(245, 158, 11, 0.05)' }
     if (e.payment_type === 'debt') return { background: 'rgba(239, 68, 68, 0.05)' }
     if (e.payment_type === 'cash') return { background: 'rgba(16, 185, 129, 0.05)' }
@@ -174,7 +175,7 @@ export default function JournalPage({ onNavigate }){
     return {}
   }
 
-  function getBadgeClass(e) {
+  function getBadgeClass(e: JournalEntry) {
     if (e.type === 'expense') return 'badge-warning'
     if (e.payment_type === 'debt') return 'badge-danger'
     if (e.payment_type === 'cash') return 'badge-success'
@@ -182,9 +183,9 @@ export default function JournalPage({ onNavigate }){
     return 'badge-secondary'
   }
 
-  function renderRow(e, isChild = false) {
+  function renderRow(e: JournalEntry, isChild = false) {
     const dt = new Date(e.date)
-    const docShare = e.amount * (e.commission_rate / 100)
+    const docShare = e.amount * ((e.commission_rate ?? 0) / 100)
     const rowStyle = getRowStyle(e)
     
     return (
@@ -198,7 +199,7 @@ export default function JournalPage({ onNavigate }){
         <td style={{ fontWeight: isChild ? 400 : 800, fontSize: 16 }}>
           {!isChild && e._group && e._children ? (
             <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-              <button className={`expand-btn ${expandedPatients[e._group] ? 'open' : ''}`} style={{ fontSize:20 }} onClick={() => toggleExpand(e._group)}>▶</button>
+              <button className={`expand-btn ${expandedPatients[e._group ?? ''] ? 'open' : ''}`} style={{ fontSize:20 }} onClick={() => toggleExpand(e._group ?? '')}>▶</button>
               <span>{e.patient_name}</span>
               <span className="badge" style={{ fontSize:10, opacity:0.5 }}>{e._groupCount} xizmat</span>
             </div>
@@ -224,15 +225,15 @@ export default function JournalPage({ onNavigate }){
             style={{ cursor: e.payment_type === 'debt' ? 'pointer' : 'default' }}
             onClick={() => e.payment_type === 'debt' && setPayingDebt(e)}
           >
-            {e.payment_type === 'debt' ? t('journal.status.debt_pay') : e.payment_type.toUpperCase()}
+            {e.payment_type === 'debt' ? t('journal.status.debt_pay') : (e.payment_type ?? '').toUpperCase()}
           </span>
         </td>
-        <td style={{ textAlign:'right', color:'var(--accent-danger)' }}>{e.discount > 0 ? formatPrice(e.discount) : '—'}</td>
+        <td style={{ textAlign:'right', color:'var(--accent-danger)' }}>{(e.discount ?? 0) > 0 ? formatPrice(e.discount) : '—'}</td>
         <td style={{ fontWeight: 600 }}>{e.status === 'refunded' ? t('journal.status.refunded') : t('journal.status.ok')}</td>
         <td style={{ fontSize:12, opacity: 0.5 }}>{e.created_by || '—'}</td>
         <td>
           <div style={{ display:'flex', gap:6 }}>
-            <button className="btn-icon-link" title={t('common.edit') || "Tahrirlash"} onClick={() => { setEditingEntry(e); setEditForm({amount:String(e.amount), discount:String(e.discount||0), paymentType:e.payment_type}) }}>✏️</button>
+            <button className="btn-icon-link" title={t('common.edit') || "Tahrirlash"} onClick={() => { setEditingEntry(e); setEditForm({amount:String(e.amount), discount:String(e.discount||0), paymentType:e.payment_type || 'cash'}) }}>✏️</button>
             <button className="btn-icon-link" title={t('reception.printCheck') || "Chek chiqarish"} onClick={() => window.print()}>🖨️</button>
             {e.payment_type === 'debt' && (
               <button className="btn-icon-link text-success" title={t('common.pay') || "Qarzni yopish"} onClick={() => setPayingDebt(e)}>💰</button>
@@ -327,7 +328,7 @@ export default function JournalPage({ onNavigate }){
               ) : groupedEntries.map(e => {
                 const rows = [renderRow(e)]
                 if (e._group && e._children && expandedPatients[e._group]) {
-                  e._children.forEach(child => rows.push(renderRow(child, true)))
+                  e._children.forEach((child) => rows.push(renderRow(child, true)))
                 }
                 return rows
               })}
@@ -367,7 +368,7 @@ export default function JournalPage({ onNavigate }){
           </div>
           <div className="form-group full-width">
             <label>{t('journal.expense_modal.description')}</label>
-            <textarea className="form-input" rows="3" value={expenseForm.description} onChange={e => setExpenseForm({...expenseForm, description: e.target.value})} placeholder="Batafsil ma'lumot..."></textarea>
+            <textarea className="form-input" rows={3} value={expenseForm.description} onChange={e => setExpenseForm({...expenseForm, description: e.target.value})} placeholder="Batafsil ma'lumot..."></textarea>
           </div>
           <div className="form-actions" style={{ marginTop:20, display:'flex', gap:10, justifyContent:'flex-end' }}>
             <button className="btn btn-ghost" onClick={() => setShowExpenseModal(false)}>{t('common.cancel')}</button>

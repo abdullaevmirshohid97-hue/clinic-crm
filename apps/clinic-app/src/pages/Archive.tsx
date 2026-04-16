@@ -3,17 +3,17 @@ import { useTranslation } from '../i18n/LanguageContext';
 import { db } from '../utils/db';
 import { useToast } from '../components/ui/Toast';
 import Modal from '../components/ui/Modal';
+import type { ArchiveRecord } from '../types/clinic';
 
 export default function Archive() {
   const { t } = useTranslation();
   const toast = useToast();
-  const [activeTab, setActiveTab] = useState('transactions'); // transactions, patients
+  const [activeTab, setActiveTab] = useState('transactions');
   const [loading, setLoading] = useState(true);
 
-  // Search & Filter
   const [search, setSearch] = useState('');
   const [year, setYear] = useState(new Date().getFullYear() - 1);
-  const [archiveData, setArchiveData] = useState([]);
+  const [archiveData, setArchiveData] = useState<ArchiveRecord[]>([]);
 
   useEffect(() => { loadArchivedData(); }, [activeTab, year]);
 
@@ -35,10 +35,10 @@ export default function Archive() {
           ORDER BY t.createdAt DESC
           LIMIT 300
         `;
-        const res = await db.query(query, [`${year}`]);
+        const res = await db.query<ArchiveRecord>(query, [`${year}`]);
         setArchiveData(res);
       } else {
-        const res = await db.query(`
+        const res = await db.query<ArchiveRecord>(`
           SELECT * FROM patients
           WHERE id NOT IN (SELECT DISTINCT patientId FROM appointments WHERE strftime('%Y', createdAt) > ?)
           AND id NOT IN (SELECT DISTINCT patientId FROM room_patients WHERE strftime('%Y', createdAt) > ?)
@@ -46,7 +46,7 @@ export default function Archive() {
         `, [`${year}`, `${year}`]);
         setArchiveData(res);
       }
-    } catch(e) { toast.error(e.message); }
+    } catch(e: unknown) { toast.error(e instanceof Error ? e.message : String(e)); }
     setLoading(false);
   }
 
@@ -55,7 +55,7 @@ export default function Archive() {
     loadArchivedData();
   }
 
-  function formatPrice(n) { return Number(n || 0).toLocaleString('uz-UZ'); }
+  function formatPrice(n: number | string | null | undefined) { return Number(n || 0).toLocaleString('uz-UZ'); }
 
   return (
     <div className="page page-archive">
@@ -67,7 +67,6 @@ export default function Archive() {
       </div>
 
       <div className="settings-layout" style={{display: 'flex', gap: 20}}>
-        {/* Sidebar Nav */}
         <div className="settings-sidebar card glass-card" style={{width: 320, alignSelf:'flex-start', padding: 25}}>
           <div className="settings-nav" style={{display:'flex', flexDirection:'column', gap: 14 }}>
              <button 
@@ -103,14 +102,13 @@ export default function Archive() {
           </div>
         </div>
 
-        {/* Content */}
         <div className="settings-content" style={{flex: 1, minWidth: 0}}>
            
            <div className="card glass-card mb-5 p-4" style={{ background: 'var(--bg-input)', border: '1px solid var(--border-color)' }}>
               <div style={{display:'flex', gap: 25, alignItems:'center' }}>
                  <div style={{ display:'flex', alignItems:'center', gap:10 }}>
                     <div style={{ fontWeight:800, fontSize:14, textTransform:'uppercase', opacity:0.7 }}>Yil:</div>
-                    <input type="number" className="form-input" style={{ width:120, fontSize:16, fontWeight:800, textAlign:'center' }} value={year} onChange={e=>setYear(e.target.value)} />
+                    <input type="number" className="form-input" style={{ width:120, fontSize:16, fontWeight:800, textAlign:'center' }} value={year} onChange={e => setYear(Number(e.target.value))} />
                  </div>
                  
                  <div style={{ flex:1, display:'flex', alignItems:'center', gap:10 }}>
@@ -134,10 +132,10 @@ export default function Archive() {
                        </tr>
                      </thead>
                      <tbody>
-                       {archiveData.filter(x => (x.fullName||'').toLowerCase().includes(search.toLowerCase()) || (x.description||'').toLowerCase().includes(search.toLowerCase())).map(t => (
+                       {archiveData.filter((x) => (x.fullName||'').toLowerCase().includes(search.toLowerCase()) || (x.description||'').toLowerCase().includes(search.toLowerCase())).map((t) => (
                          <tr key={t.id} style={{ height: 65, fontSize: 15 }}>
-                           <td style={{ opacity:0.7, fontWeight:600 }}>{new Date(t.createdAt).toLocaleString('uz-UZ')}</td>
-                           <td><div style={{fontWeight:800}}>{t.fullName || t.patient_name || '—'}</div></td>
+                           <td style={{ opacity:0.7, fontWeight:600 }}>{new Date(t.createdAt ?? '').toLocaleString('uz-UZ')}</td>
+                           <td><div style={{fontWeight:800}}>{t.fullName || (typeof t.patient_name === 'string' ? t.patient_name : '') || '—'}</div></td>
                            <td><span className="badge badge-outline">{t.description || t.serviceName}</span></td>
                            <td><span className={`badge ${t.paymentType==='cash' ? 'badge-success' : 'badge-info'}`} style={{ textTransform:'uppercase' }}>{t.paymentType}</span></td>
                            <td style={{fontWeight:900, color:'var(--accent-primary)', textAlign:'right', fontSize:17}}>{formatPrice(t.amount)} so'm</td>
@@ -166,7 +164,7 @@ export default function Archive() {
                        </tr>
                      </thead>
                      <tbody>
-                       {archiveData.filter(x => (x.fullName||'').toLowerCase().includes(search.toLowerCase())).map(p => (
+                       {archiveData.filter((x) => (x.fullName||'').toLowerCase().includes(search.toLowerCase())).map((p) => (
                          <tr key={p.id} style={{ height: 65, fontSize: 15 }}>
                            <td><div style={{fontWeight:800}}>{p.fullName}</div></td>
                            <td style={{ fontWeight: 600 }}>{p.phone || '—'}</td>

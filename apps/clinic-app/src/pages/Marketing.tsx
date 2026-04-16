@@ -3,6 +3,7 @@ import { useTranslation } from '../i18n/LanguageContext';
 import { db } from '../utils/db';
 import { useToast } from '../components/ui/Toast';
 import Modal from '../components/ui/Modal';
+import type { PatientLTVRecord, CampaignRecord } from '../types/clinic';
 
 export default function Marketing() {
   const { t } = useTranslation();
@@ -11,12 +12,12 @@ export default function Marketing() {
   const [loading, setLoading] = useState(true);
 
   // Data
-  const [patientsLTV, setPatientsLTV] = useState([]);
-  const [campaigns, setCampaigns] = useState([]);
+  const [patientsLTV, setPatientsLTV] = useState<PatientLTVRecord[]>([]);
+  const [campaigns, setCampaigns] = useState<CampaignRecord[]>([]);
 
   // Campaign Form
   const [showCampaignModal, setShowCampaignModal] = useState(false);
-  const [campaignForm, setCampaignForm] = useState({ id: null, name: '', type: 'sms', targetGroup: 'all', content: '' });
+  const [campaignForm, setCampaignForm] = useState({ id: null as number | null, name: '', type: 'sms', targetGroup: 'all', content: '' });
 
   useEffect(() => { loadData(); }, [activeTab]);
 
@@ -24,7 +25,7 @@ export default function Marketing() {
     setLoading(true);
     try {
       if (activeTab === 'segments') {
-        const ltvData = await db.query(`
+        const ltvData = await db.query<PatientLTVRecord>(`
           SELECT p.id, p.fullName, p.phone, p.createdAt,
                  COALESCE(SUM(t.amount), 0) as ltv,
                  MAX(t.createdAt) as lastVisit
@@ -39,10 +40,10 @@ export default function Marketing() {
         `);
         setPatientsLTV(ltvData);
       } else {
-        const camps = await db.query("SELECT * FROM marketing_campaigns ORDER BY id DESC");
+        const camps = await db.query<CampaignRecord>("SELECT * FROM marketing_campaigns ORDER BY id DESC");
         setCampaigns(camps);
       }
-    } catch (e) { toast.error(e.message); }
+    } catch (e: unknown) { toast.error(e instanceof Error ? e.message : String(e)); }
     setLoading(false);
   }
 
@@ -63,19 +64,19 @@ export default function Marketing() {
       }
       setShowCampaignModal(false);
       loadData();
-    } catch (e) { toast.error(e.message); }
+    } catch (e: unknown) { toast.error(e instanceof Error ? e.message : String(e)); }
   }
 
-  async function stopCampaign(id) {
+  async function stopCampaign(id: number | string) {
     if(!window.confirm("Buni to'xtatmoqchimisiz?")) return;
     try {
       await db.run("UPDATE marketing_campaigns SET status='completed', endDate=datetime('now','localtime') WHERE id=?", [id]);
       toast.success("Kampaniya to'xtatildi");
       loadData();
-    } catch (e) { toast.error(e.message); }
+    } catch (e: unknown) { toast.error(e instanceof Error ? e.message : String(e)); }
   }
 
-  function formatPrice(n) { return Number(n || 0).toLocaleString('uz-UZ'); }
+  function formatPrice(n: number | string | null | undefined) { return Number(n || 0).toLocaleString('uz-UZ'); }
 
   // Segmentation Logic
   const top10 = patientsLTV.slice(0, 10);
@@ -256,7 +257,7 @@ export default function Marketing() {
 
            <div className="form-group">
               <label>Xabar Matni</label>
-              <textarea className="form-input" rows="5" style={{ padding: 12 }} value={campaignForm.content} onChange={e=>setCampaignForm({...campaignForm, content: e.target.value})} placeholder="Xabar matni..."></textarea>
+              <textarea className="form-input" rows={5} style={{ padding: 12 }} value={campaignForm.content} onChange={e=>setCampaignForm({...campaignForm, content: e.target.value})} placeholder="Xabar matni..."></textarea>
            </div>
            
            <div className="p-4" style={{ background:'rgba(37,99,235,0.05)', border:'1px solid var(--accent-primary-glow)', borderRadius:12 }}>

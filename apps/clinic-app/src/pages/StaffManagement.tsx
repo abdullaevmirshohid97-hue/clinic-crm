@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../utils/db';
+import type { StaffMember } from '../types/clinic';
 import { useToast } from '../components/ui/Toast';
 
 const ROLES = [
@@ -17,10 +18,10 @@ const EMPTY_FORM = { fullName: '', specialty: '', phone: '', role: 'staff', sala
 
 export default function StaffManagement() {
   const toast = useToast();
-  const [staff, setStaff] = useState([]);
+  const [staff, setStaff] = useState<StaffMember[]>([]);
   const [loading, setLoading] = useState(false);
   const [showForm, setShowForm] = useState(false);
-  const [editId, setEditId] = useState(null);
+  const [editId, setEditId] = useState<number | null>(null);
   const [form, setForm] = useState(EMPTY_FORM);
   const [search, setSearch] = useState('');
 
@@ -29,10 +30,10 @@ export default function StaffManagement() {
   async function loadStaff() {
     setLoading(true);
     try {
-      const data = await db.getAllRows('staff');
+      const data = await db.getAllRows<StaffMember>('staff');
       setStaff(data);
-    } catch (err) {
-      toast.error('Xodimlarni yuklashda xatolik: ' + err.message);
+    } catch (err: unknown) {
+      toast.error('Xodimlarni yuklashda xatolik: ' + (err instanceof Error ? err.message : String(err)));
     }
     setLoading(false);
   }
@@ -43,7 +44,7 @@ export default function StaffManagement() {
     setShowForm(true);
   }
 
-  function openEdit(s) {
+  function openEdit(s: StaffMember) {
     setEditId(s.id);
     setForm({
       fullName: s.fullName || '',
@@ -79,19 +80,19 @@ export default function StaffManagement() {
       }
       setShowForm(false);
       await loadStaff();
-    } catch (err) {
-      toast.error(err.message);
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : String(err));
     }
     setLoading(false);
   }
 
-  async function handleDelete(id) {
+  async function handleDelete(id: number | string) {
     if (!window.confirm("O'chirishni tasdiqlaysizmi?")) return;
     try {
       await db.delete('staff', id);
       toast.success("O'chirildi!");
       await loadStaff();
-    } catch (err) { toast.error(err.message); }
+    } catch (err: unknown) { toast.error(err instanceof Error ? err.message : String(err)); }
   }
 
   const filtered = staff.filter(s =>
@@ -99,7 +100,7 @@ export default function StaffManagement() {
     s.role?.toLowerCase().includes(search.toLowerCase())
   );
 
-  const roleLabel = (r) => ROLES.find(x => x.value === r)?.label || r;
+  const roleLabel = (r: string) => ROLES.find(x => x.value === r)?.label || r;
 
   return (
     <div className="page">

@@ -2,11 +2,19 @@ import { supabase } from './supabase';
 import { authStore } from '../app/store';
 
 /**
+ * Generic row returned from Supabase — values are dynamic JSON so typed as `any`.
+ * Callers that know the shape can use the typed generics: db.getAllRows<MyType>(table).
+ */
+type DbRow = Record<string, any>;
+
+type DbResult<T> = { success: true; data: T } | { success: false; error: string };
+type DbSimpleResult = { success: true } | { success: false; error: string };
+
+/**
  * DB abstraction layer for Clary SaaS.
  * All calls are strictly routed through Supabase with Clinic isolation.
  */
 export const db = {
-  // Check if we have a valid session and clinic context
   getContext: () => {
     const clinicId = authStore.clinicId;
     if (!clinicId) {
@@ -16,7 +24,7 @@ export const db = {
     return clinicId;
   },
 
-  getAll: async (table) => {
+  getAll: async <T extends DbRow = DbRow>(table: string): Promise<DbResult<T[]>> => {
     try {
       const clinicId = db.getContext();
 
@@ -29,21 +37,22 @@ export const db = {
       const { data, error } = await query.order('id', { ascending: false });
       
       if (error) throw error;
-      return { success: true, data };
-    } catch (err) {
+      return { success: true, data: (data ?? []) as T[] };
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
       console.error(`DB GetAll Error (${table}):`, err);
-      return { success: false, error: err.message };
+      return { success: false, error: msg };
     }
   },
 
-  insert: async (table, data) => {
+  insert: async <T extends DbRow = DbRow>(table: string, data: DbRow | DbRow[]): Promise<DbResult<T | T[]>> => {
     try {
       const clinicId = db.getContext();
       const payload = Array.isArray(data) ? data : [data];
       
-      const itemsToInsert = payload.map(item => ({
+      const itemsToInsert = payload.map((item) => ({
         ...item,
-        clinic_id: item.clinic_id || clinicId,
+        clinic_id: item['clinic_id'] ?? clinicId,
         created_at: new Date().toISOString()
       }));
 
@@ -53,14 +62,16 @@ export const db = {
         .select();
 
       if (error) throw error;
-      return { success: true, data: Array.isArray(data) ? inserted : inserted[0] };
-    } catch (err) {
+      const result = (inserted ?? []) as T[];
+      return { success: true, data: Array.isArray(data) ? result : result[0] };
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
       console.error(`DB Insert Error (${table}):`, err);
-      return { success: false, error: err.message };
+      return { success: false, error: msg };
     }
   },
 
-  update: async (table, id, data) => {
+  update: async (table: string, id: number | string, data: DbRow): Promise<DbSimpleResult> => {
     try {
       const clinicId = db.getContext();
 
@@ -68,17 +79,18 @@ export const db = {
         .from(table)
         .update(data)
         .eq('id', id)
-        .eq('clinic_id', clinicId); // Double check isolation
+        .eq('clinic_id', clinicId);
 
       if (error) throw error;
       return { success: true };
-    } catch (err) {
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
       console.error(`DB Update Error (${table}, ${id}):`, err);
-      return { success: false, error: err.message };
+      return { success: false, error: msg };
     }
   },
 
-  delete: async (table, id) => {
+  delete: async (table: string, id: number | string): Promise<DbSimpleResult> => {
     try {
       const clinicId = db.getContext();
 
@@ -90,49 +102,49 @@ export const db = {
 
       if (error) throw error;
       return { success: true };
-    } catch (err) {
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
       console.error(`DB Delete Error (${table}, ${id}):`, err);
-      return { success: false, error: err.message };
+      return { success: false, error: msg };
     }
   },
 
-  // Minimal implementation for SQL queries (unsupported in SaaS)
-  async query(sql) {
+  async query<T extends DbRow = DbRow>(sql: string, _params?: unknown[]): Promise<T[]> {
     console.warn("Supabase does not support raw SQL from client. Ignored SQL:", sql);
-    return [];
+    return [] as T[];
   },
 
-  async run(sql) {
-    return this.query(sql);
+  async run<T extends DbRow = DbRow>(sql: string, _params?: unknown[]): Promise<T[]> {
+    return this.query<T>(sql);
   },
 
-  async setSetting(key, value) {
+  async setSetting(key: string, value: string | number | boolean | null): Promise<DbSimpleResult> {
     const clinicId = db.getContext();
     try {
       const { error } = await supabase.from('settings').upsert({ clinic_id: clinicId, key, value }, { onConflict: 'clinic_id,key' });
       if (error) throw error;
       return { success: true };
-    } catch(e) {
-      // Fallback update explicitly if upsert fails
+    } catch(e: unknown) {
       try {
          const { data } = await supabase.from('settings').select('id').eq('clinic_id', clinicId).eq('key', key).single();
-         if (data) await supabase.from('settings').update({ value }).eq('id', data.id);
+         if (data) await supabase.from('settings').update({ value }).eq('id', (data as DbRow)['id']);
          else await supabase.from('settings').insert({ clinic_id: clinicId, key, value });
          return { success: true };
-      } catch(e2) {
-         return { success: false, error: e2.message };
+      } catch(e2: unknown) {
+         const msg = e2 instanceof Error ? e2.message : String(e2);
+         return { success: false, error: msg };
       }
     }
   },
 
-  async insertReturn(table, data) {
-    const res = await this.insert(table, data);
+  async insertReturn<T extends DbRow = DbRow>(table: string, data: DbRow): Promise<T> {
+    const res = await this.insert<T>(table, data);
     if (!res.success) throw new Error(res.error || 'Insert failed');
-    return res.data;
+    return res.data as T;
   },
 
-  async getAllRows(table) {
-    const res = await this.getAll(table);
+  async getAllRows<T extends DbRow = DbRow>(table: string): Promise<T[]> {
+    const res = await this.getAll<T>(table);
     if (!res.success) throw new Error(res.error || 'GetAll failed');
     return Array.isArray(res.data) ? res.data : [];
   },
