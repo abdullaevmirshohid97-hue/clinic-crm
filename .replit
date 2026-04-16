@@ -25,6 +25,10 @@ args = "typecheck"
 task = "workflow.run"
 args = "lint"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "format"
+
 [[workflows.workflow]]
 name = "Start application"
 author = "agent"
@@ -55,6 +59,17 @@ author = "agent"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "cd apps/clinic-app && npm run lint"
+
+[workflows.workflow.metadata]
+isValidation = true
+
+[[workflows.workflow]]
+name = "format"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd apps/clinic-app && npm run format:check"
 
 [workflows.workflow.metadata]
 isValidation = true
