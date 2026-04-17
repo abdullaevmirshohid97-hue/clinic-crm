@@ -114,7 +114,7 @@ export interface ProfileWithRole {
   id: string;
   clinic_id: string | number | null;
   role?: string;
-  roles?: { name: string } | null;
+  role_id?: number;
   [key: string]: unknown;
 }
 

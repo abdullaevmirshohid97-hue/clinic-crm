@@ -110,25 +110,33 @@ export const authStore = {
     if (session?.user) {
       const { data: profile } = await supabase
         .from('profiles')
-        .select('*, roles(name)')
+        .select('*')
         .eq('id', session.user.id)
         .single();
 
       if (profile) {
         const typedProfile = profile as ProfileWithRole;
-        // Support both DB schemas:
-        // - Migration schema: profiles.role TEXT (direct string column)
-        // - Legacy live DB: profiles.role_id INT FK → roles table (joined above)
-        const roleName = typedProfile.roles?.name || (typedProfile.role as string) || 'guest';
+        // Primary: profiles.role TEXT (migration schema).
+        // Fallback: if role_id exists (legacy live DB), query roles table separately.
+        let roleName = (typedProfile.role as string) || null;
+        if (!roleName && typedProfile.role_id) {
+          const { data: roleRow } = await supabase
+            .from('roles')
+            .select('name')
+            .eq('id', typedProfile.role_id as number)
+            .single();
+          roleName = (roleRow as { name: string } | null)?.name || null;
+        }
+        const resolvedRole = roleName || 'guest';
         const { data: perms } = await supabase
           .from('app_permissions')
           .select('feature_name')
-          .eq('role_name', roleName)
+          .eq('role_name', resolvedRole)
           .eq('canAccess', 1);
 
         const dbPerms = (perms as AppPermission[] | null)?.map((p) => p.feature_name) ?? [];
         const resolvedPerms =
-          dbPerms.length > 0 ? dbPerms : (ROLE_FALLBACK_PERMISSIONS[roleName] ?? []);
+          dbPerms.length > 0 ? dbPerms : (ROLE_FALLBACK_PERMISSIONS[resolvedRole] ?? []);
 
         _state = {
           user: session.user,
@@ -136,7 +144,7 @@ export const authStore = {
           // clinic_id is BIGINT in DB (number); stored as string so
           // Supabase PostgREST .eq('clinic_id', ...) accepts both types transparently.
           clinicId: typedProfile.clinic_id != null ? String(typedProfile.clinic_id) : null,
-          role: roleName,
+          role: resolvedRole,
           permissions: resolvedPerms,
           isLoading: false,
           isAuthenticated: true,
