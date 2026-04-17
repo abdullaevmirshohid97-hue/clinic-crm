@@ -2,6 +2,19 @@ import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import type { User, Session } from '@supabase/supabase-js';
 import type { ProfileWithRole, AppPermission } from '../types/clinic';
 
+const ALL_FEATURES = [
+  'dashboard', 'reception', 'queue', 'inpatient', 'laboratory',
+  'pharmacy', 'cashier', 'journal', 'analytics', 'marketing',
+  'archive', 'staff', 'subscription', 'settings',
+];
+
+const ROLE_FALLBACK_PERMISSIONS: Record<string, string[]> = {
+  super_admin: ALL_FEATURES,
+  admin:       ALL_FEATURES,
+  doctor:      ['dashboard', 'reception', 'queue', 'inpatient', 'laboratory', 'pharmacy', 'archive'],
+  cashier:     ['dashboard', 'reception', 'queue', 'cashier', 'journal', 'analytics', 'archive'],
+};
+
 /**
  * Clary SaaS Auth Store.
  * Powered by Supabase Auth + public.profiles (multi-tenant context).
@@ -69,7 +82,7 @@ export const authStore = {
           session: { access_token: 'mock-token' } as Session,
           clinicId: impId,
           role: 'super_admin',
-          permissions: ['dashboard', 'reception', 'cashier', 'analytics', 'settings'],
+          permissions: ALL_FEATURES,
           isLoading: false,
           isAuthenticated: true,
         };
@@ -86,25 +99,29 @@ export const authStore = {
     if (session?.user) {
       const { data: profile } = await supabase
         .from('profiles')
-        .select('*, roles(name)')
-        .eq('id', session.user.id)
+        .select('*')
+        .eq('user_id', session.user.id)
         .single();
 
       if (profile) {
         const typedProfile = profile as ProfileWithRole;
-        const roleName = typedProfile.roles?.name;
+        const roleName = (typedProfile.role as string) || typedProfile.roles?.name || 'guest';
         const { data: perms } = await supabase
           .from('app_permissions')
           .select('feature_name')
           .eq('role_name', roleName)
           .eq('canAccess', 1);
 
+        const dbPerms = (perms as AppPermission[] | null)?.map((p) => p.feature_name) ?? [];
+        const resolvedPerms =
+          dbPerms.length > 0 ? dbPerms : (ROLE_FALLBACK_PERMISSIONS[roleName] ?? []);
+
         _state = {
           user: session.user,
           session: session,
           clinicId: typedProfile.clinic_id,
-          role: roleName || 'guest',
-          permissions: (perms as AppPermission[] | null)?.map((p) => p.feature_name) || [],
+          role: roleName,
+          permissions: resolvedPerms,
           isLoading: false,
           isAuthenticated: true,
         };
