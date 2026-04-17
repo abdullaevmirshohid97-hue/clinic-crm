@@ -37,6 +37,29 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
+-- In-place repair: fix clinic_id column type if it was previously UUID (type mismatch).
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'profiles'
+      AND column_name = 'clinic_id' AND data_type = 'uuid'
+  ) THEN
+    ALTER TABLE public.profiles ALTER COLUMN clinic_id TYPE BIGINT USING NULL;
+  END IF;
+END $$;
+
+-- In-place repair: add role TEXT column if only role_id FK existed (legacy live DB).
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'profiles' AND column_name = 'role'
+  ) THEN
+    ALTER TABLE public.profiles ADD COLUMN role TEXT;
+  END IF;
+END $$;
+
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "profiles_access" ON public.profiles;
