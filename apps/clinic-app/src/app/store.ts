@@ -3,16 +3,27 @@ import type { User, Session } from '@supabase/supabase-js';
 import type { ProfileWithRole, AppPermission } from '../types/clinic';
 
 const ALL_FEATURES = [
-  'dashboard', 'reception', 'queue', 'inpatient', 'laboratory',
-  'pharmacy', 'cashier', 'journal', 'analytics', 'marketing',
-  'archive', 'staff', 'subscription', 'settings',
+  'dashboard',
+  'reception',
+  'queue',
+  'inpatient',
+  'laboratory',
+  'pharmacy',
+  'cashier',
+  'journal',
+  'analytics',
+  'marketing',
+  'archive',
+  'staff',
+  'subscription',
+  'settings',
 ];
 
 const ROLE_FALLBACK_PERMISSIONS: Record<string, string[]> = {
   super_admin: ALL_FEATURES,
-  admin:       ALL_FEATURES,
-  doctor:      ['dashboard', 'reception', 'queue', 'inpatient', 'laboratory', 'pharmacy', 'archive'],
-  cashier:     ['dashboard', 'reception', 'queue', 'cashier', 'journal', 'analytics', 'archive'],
+  admin: ALL_FEATURES,
+  doctor: ['dashboard', 'reception', 'queue', 'inpatient', 'laboratory', 'pharmacy', 'archive'],
+  cashier: ['dashboard', 'reception', 'queue', 'cashier', 'journal', 'analytics', 'archive'],
 };
 
 /**
