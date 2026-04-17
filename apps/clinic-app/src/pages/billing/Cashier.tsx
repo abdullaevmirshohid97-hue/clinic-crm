@@ -73,12 +73,26 @@ export default function Cashier() {
         });
       }
 
+      // Fetch service names (no FK constraint, so use explicit .in() lookup)
+      const serviceIds = [...new Set(txRows.map((r) => r.service_id).filter(Boolean))];
+      const serviceMap: Record<number, string> = {};
+      if (serviceIds.length > 0) {
+        const { data: svcData } = await supabase
+          .from('services')
+          .select('id, name')
+          .in('id', serviceIds as number[]);
+        (svcData ?? []).forEach((s) => {
+          serviceMap[s.id as number] = s.name as string;
+        });
+      }
+
       const rows = txRows.map((r) => ({
         ...r,
         patientNameStr: (r.patients as { fullName?: string } | null)?.fullName,
         patientPhone: (r.patients as { phone?: string } | null)?.phone,
         doctorNameStr: (r.doctors as { fullName?: string } | null)?.fullName,
         shiftType: shiftMap[r.shift_id as number] ?? undefined,
+        serviceName: serviceMap[r.service_id as number] ?? undefined,
       })) as TransactionRecord[];
 
       setTransactions(rows);
