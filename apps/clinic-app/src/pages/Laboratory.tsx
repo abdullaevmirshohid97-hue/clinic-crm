@@ -44,9 +44,12 @@ export default function Laboratory() {
     setLoading(true);
     try {
       if (activeTab === 'workflow') {
+        const today = new Date().toISOString().split('T')[0];
         const { data: tsData, error: tsErr } = await supabase
           .from('laboratory_tests')
           .select('*, patients(fullName, phone, gender, birthDate), orderedBy:doctors(fullName)')
+          .gte('createdAt', `${today}T00:00:00`)
+          .lte('createdAt', `${today}T23:59:59.999`)
           .order('createdAt', { ascending: false });
         if (tsErr) throw tsErr;
 
@@ -548,7 +551,7 @@ export default function Laboratory() {
       <div className="page-header">
         <h1>🧪 Professional LIMS</h1>
         <div style={{ display: 'flex', gap: 10 }}>
-          {activeTab === 'workflow' ? (
+          {activeTab === 'workflow' && (
             <button
               className="btn btn-primary"
               onClick={() => {
@@ -558,7 +561,8 @@ export default function Laboratory() {
             >
               + Tahlil boshlash
             </button>
-          ) : (
+          )}
+          {activeTab === 'templates' && (
             <button
               className="btn btn-primary"
               onClick={() => {
