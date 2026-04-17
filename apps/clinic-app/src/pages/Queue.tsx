@@ -3,6 +3,7 @@ import { useTranslation } from '../i18n/LanguageContext';
 import { useToast } from '../components/ui/Toast';
 import Modal from '../components/ui/Modal';
 import { db } from '../utils/db';
+import { supabase } from '../utils/supabase';
 import type { QueueTicket, Doctor } from '../types/clinic';
 import { printReceipt } from '../utils/printer';
 
@@ -24,25 +25,39 @@ export default function Queue() {
     try {
       const today = new Date().toISOString().split('T')[0];
       const targetDate = activeTab === 'journal' ? journalDate : today;
+      const startOfDay = `${targetDate}T00:00:00`;
+      const endOfDay = `${targetDate}T23:59:59.999`;
 
-      const rows = await db.query(
-        `SELECT q.*, p.fullName as patientName, d.fullName as doctorName, d.prefix as doctorPrefix
-         FROM queue q
-         LEFT JOIN patients p ON q.patientId = p.id
-         LEFT JOIN doctors d ON q.doctorId = d.id
-         WHERE date(q.createdAt) = ?
-         ORDER BY q.id ASC`,
-        [targetDate]
-      );
+      const { data: queueData, error: queueErr } = await supabase
+        .from('queue')
+        .select('*, patients(fullName), doctors(fullName, prefix)')
+        .gte('createdAt', startOfDay)
+        .lte('createdAt', endOfDay)
+        .order('id', { ascending: true });
+
+      if (queueErr) throw queueErr;
+
+      const rows = (queueData ?? []).map((r) => ({
+        ...r,
+        patientName: (r.patients as { fullName?: string } | null)?.fullName,
+        doctorName: (r.doctors as { fullName?: string } | null)?.fullName,
+        doctorPrefix: (r.doctors as { prefix?: string } | null)?.prefix,
+      }));
 
       if (activeTab === 'board') {
         setTickets(rows as QueueTicket[]);
       } else {
-        setHistory([...(rows as QueueTicket[])].reverse());
+        setHistory([...rows].reverse() as QueueTicket[]);
       }
 
-      const docRows = await db.query('SELECT * FROM doctors WHERE isActive = 1 ORDER BY fullName');
-      setDoctors(docRows as Doctor[]);
+      const { data: docData, error: docErr } = await supabase
+        .from('doctors')
+        .select('id, fullName, specialty, prefix')
+        .eq('isActive', 1)
+        .order('fullName');
+
+      if (docErr) throw docErr;
+      setDoctors((docData ?? []) as Doctor[]);
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : String(err));
     }
@@ -70,11 +85,15 @@ export default function Queue() {
 
     try {
       const today = new Date().toISOString().split('T')[0];
-      const lastTicket = await db.query(
-        `SELECT MAX(number) as maxNum FROM queue WHERE doctorId = ? AND date(createdAt) = ?`,
-        [selectedDoctor.id, today]
-      );
-      const nextNum = (lastTicket[0]?.maxNum || 0) + 1;
+      const { data: lastTicket } = await supabase
+        .from('queue')
+        .select('number')
+        .eq('doctorId', selectedDoctor.id)
+        .gte('createdAt', `${today}T00:00:00`)
+        .lte('createdAt', `${today}T23:59:59.999`)
+        .order('number', { ascending: false })
+        .limit(1);
+      const nextNum = ((lastTicket?.[0]?.number as number) || 0) + 1;
       const prefix = selectedDoctor.prefix || 'A';
 
       setPreviewTicket({
@@ -95,10 +114,12 @@ export default function Queue() {
     try {
       let patientId = null;
       if (previewTicket.patientName) {
-        const existing = await db.query('SELECT id FROM patients WHERE fullName = ? LIMIT 1', [
-          previewTicket.patientName,
-        ]);
-        if (existing.length > 0) {
+        const { data: existing } = await supabase
+          .from('patients')
+          .select('id')
+          .eq('fullName', previewTicket.patientName)
+          .limit(1);
+        if (existing && existing.length > 0) {
           patientId = existing[0].id;
         } else {
           const pResult = await db.insertReturn('patients', {

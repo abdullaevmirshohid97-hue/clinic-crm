@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { db } from '../utils/db';
+import { supabase } from '../utils/supabase';
 
 interface QueueRow {
   id: number;
@@ -26,17 +26,24 @@ export default function QueueMonitor() {
   const loadData = useCallback(async () => {
     try {
       const today = new Date().toISOString().split('T')[0];
-      const rows = await db.query(
-        `SELECT q.*, d.fullName as doctorName, d.prefix as doctorPrefix, d.roomNumber
-         FROM queue q
-         LEFT JOIN doctors d ON q.doctorId = d.id
-         WHERE date(q.createdAt) = ? AND q.status != 'completed'
-         ORDER BY q.id ASC`,
-        [today]
-      );
+      const { data: queueData, error } = await supabase
+        .from('queue')
+        .select('*, doctors(fullName, prefix)')
+        .gte('createdAt', `${today}T00:00:00`)
+        .lte('createdAt', `${today}T23:59:59.999`)
+        .neq('status', 'completed')
+        .order('id', { ascending: true });
 
-      const newWaiting = (rows as QueueRow[]).filter((r) => r.status === 'waiting');
-      const newInProgress = (rows as QueueRow[]).filter((r) => r.status === 'in_progress');
+      if (error) throw error;
+
+      const rows = (queueData ?? []).map((r) => ({
+        ...r,
+        doctorName: (r.doctors as { fullName?: string } | null)?.fullName,
+        doctorPrefix: (r.doctors as { prefix?: string } | null)?.prefix,
+      })) as QueueRow[];
+
+      const newWaiting = rows.filter((r) => r.status === 'waiting');
+      const newInProgress = rows.filter((r) => r.status === 'in_progress');
 
       setWaiting(newWaiting);
       setInProgress(newInProgress);

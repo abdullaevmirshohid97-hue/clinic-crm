@@ -21,7 +21,7 @@ interface ClinicSettings {
 
 export async function getClinicSettings(): Promise<ClinicSettings> {
   try {
-    const rows = await db.query<{ key: string; value: string }>('SELECT key, value FROM settings');
+    const rows = await db.getAllRows<{ key: string; value: string }>('settings');
     const settings: ClinicSettings = {};
     rows.forEach((r) => {
       settings[r.key] = r.value;
