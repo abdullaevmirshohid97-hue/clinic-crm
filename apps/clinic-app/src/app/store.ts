@@ -110,13 +110,13 @@ export const authStore = {
     if (session?.user) {
       const { data: profile } = await supabase
         .from('profiles')
-        .select('*')
-        .eq('user_id', session.user.id)
+        .select('*, roles(name)')
+        .eq('id', session.user.id)
         .single();
 
       if (profile) {
         const typedProfile = profile as ProfileWithRole;
-        const roleName = (typedProfile.role as string) || typedProfile.roles?.name || 'guest';
+        const roleName = typedProfile.roles?.name || 'guest';
         const { data: perms } = await supabase
           .from('app_permissions')
           .select('feature_name')
@@ -130,7 +130,7 @@ export const authStore = {
         _state = {
           user: session.user,
           session: session,
-          clinicId: typedProfile.clinic_id,
+          clinicId: typedProfile.clinic_id != null ? String(typedProfile.clinic_id) : null,
           role: roleName,
           permissions: resolvedPerms,
           isLoading: false,

@@ -1,82 +1,67 @@
--- 1. CLINICS TABLE
-CREATE TABLE IF NOT EXISTS clinics (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name TEXT NOT NULL,
-  status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'blocked')),
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
-);
+-- Tenant Auth Migration
+-- Creates profiles table and auth helper functions aligned with initial_schema.sql
+-- clinics and patients tables are already created in 20260405185031_initial_schema.sql
 
--- 2. PROFILES TABLE
-CREATE TABLE IF NOT EXISTS profiles (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  clinic_id UUID REFERENCES clinics(id) ON DELETE RESTRICT,
-  full_name TEXT NOT NULL,
-  role TEXT NOT NULL CHECK (role IN ('super_admin', 'admin', 'doctor', 'cashier')),
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
-  UNIQUE(user_id)
-);
-
--- 3. PATIENTS TABLE
-CREATE TABLE IF NOT EXISTS patients (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  clinic_id UUID NOT NULL REFERENCES clinics(id) ON DELETE RESTRICT,
-  full_name TEXT NOT NULL,
-  phone TEXT,
-  created_by UUID REFERENCES profiles(id) ON DELETE SET NULL,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
-);
-
--- ENABLE RLS
-ALTER TABLE clinics ENABLE ROW LEVEL SECURITY;
-ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
-ALTER TABLE patients ENABLE ROW LEVEL SECURITY;
-
--- HELPER FUNCTIONS (auth.jwt)
+-- HELPER FUNCTIONS
+-- get_my_clinic_id() returns BIGINT (matches clinics.id type)
 CREATE OR REPLACE FUNCTION get_my_clinic_id()
-RETURNS uuid AS $$
-  SELECT (auth.jwt() -> 'app_metadata' ->> 'clinic_id')::uuid;
+RETURNS BIGINT AS $$
+  SELECT (auth.jwt() -> 'app_metadata' ->> 'clinic_id')::BIGINT;
 $$ LANGUAGE sql STABLE;
 
+-- get_my_role() returns the role name from JWT app_metadata
 CREATE OR REPLACE FUNCTION get_my_role()
-RETURNS text AS $$
+RETURNS TEXT AS $$
   SELECT auth.jwt() -> 'app_metadata' ->> 'role';
 $$ LANGUAGE sql STABLE;
 
--- CLINICS POLICIES
-DROP POLICY IF EXISTS "clinic_access" ON clinics;
+-- ROLES TABLE (lookup for profile roles)
+CREATE TABLE IF NOT EXISTS public.roles (
+  id   SERIAL PRIMARY KEY,
+  name TEXT NOT NULL UNIQUE
+);
+
+INSERT INTO public.roles (name) VALUES
+  ('admin'), ('doctor'), ('nurse'), ('reception'), ('super_admin'), ('cashier'), ('warehouse_manager')
+ON CONFLICT (name) DO NOTHING;
+
+-- PROFILES TABLE
+-- id = auth.users.id (UUID), clinic_id = clinics.id (BIGINT)
+CREATE TABLE IF NOT EXISTS public.profiles (
+  id         UUID PRIMARY KEY,
+  clinic_id  BIGINT REFERENCES clinics(id) ON DELETE RESTRICT,
+  full_name  TEXT NOT NULL,
+  role_id    INTEGER NOT NULL REFERENCES public.roles(id),
+  last_seen  TIMESTAMPTZ,
+  is_active  BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "profiles_access" ON public.profiles;
+CREATE POLICY "profiles_access"
+ON public.profiles FOR ALL
+USING (
+  get_my_role() = 'super_admin'
+  OR clinic_id = get_my_clinic_id()
+)
+WITH CHECK (
+  get_my_role() = 'super_admin'
+  OR clinic_id = get_my_clinic_id()
+);
+
+-- CLINICS RLS (using get_my_role / get_my_clinic_id)
+DROP POLICY IF EXISTS "clinic_access" ON public.clinics;
 CREATE POLICY "clinic_access"
-ON clinics
-FOR ALL
+ON public.clinics FOR ALL
 USING (
   get_my_role() = 'super_admin'
   OR id = get_my_clinic_id()
 );
 
--- PROFILES POLICIES
-DROP POLICY IF EXISTS "profiles_access" ON profiles;
-CREATE POLICY "profiles_access"
-ON profiles
-FOR ALL
-USING (
-  get_my_role() = 'super_admin'
-  OR clinic_id = get_my_clinic_id()
-)
-WITH CHECK (
-  get_my_role() = 'super_admin'
-  OR clinic_id = get_my_clinic_id()
-);
-
--- PATIENTS POLICIES
-DROP POLICY IF EXISTS "patients_access" ON patients;
-CREATE POLICY "patients_access"
-ON patients
-FOR ALL
-USING (
-  get_my_role() = 'super_admin'
-  OR clinic_id = get_my_clinic_id()
-)
-WITH CHECK (
-  get_my_role() = 'super_admin'
-  OR clinic_id = get_my_clinic_id()
-);
+-- PATIENTS RLS update to use BIGINT helper
+DROP POLICY IF EXISTS "Clinic isolation" ON public.patients;
+CREATE POLICY "Clinic isolation"
+ON public.patients FOR ALL
+USING (clinic_id = get_clinic_id());
