@@ -116,7 +116,10 @@ export const authStore = {
 
       if (profile) {
         const typedProfile = profile as ProfileWithRole;
-        const roleName = typedProfile.roles?.name || 'guest';
+        // Support both DB schemas:
+        // - Migration schema: profiles.role TEXT (direct string column)
+        // - Legacy live DB: profiles.role_id INT FK → roles table (joined above)
+        const roleName = typedProfile.roles?.name || (typedProfile.role as string) || 'guest';
         const { data: perms } = await supabase
           .from('app_permissions')
           .select('feature_name')

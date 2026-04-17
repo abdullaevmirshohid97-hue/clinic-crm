@@ -1,40 +1,39 @@
 -- Tenant Auth Migration
--- Creates profiles table and auth helper functions aligned with initial_schema.sql
--- clinics and patients tables are already created in 20260405185031_initial_schema.sql
+-- Aligns profiles table with initial_schema.sql and downstream migrations.
+-- clinics and patients are already created in 20260405185031_initial_schema.sql.
+-- All downstream migrations (analytics_rpc, plans_subscriptions, atomic_rpc)
+-- expect profiles.clinic_id BIGINT and profiles.role TEXT.
 
+-- ─────────────────────────────────────────────────────────────────
 -- HELPER FUNCTIONS
+-- ─────────────────────────────────────────────────────────────────
+
 -- get_my_clinic_id() is an alias for get_clinic_id() (defined in initial_schema).
--- Both read from app_metadata.clinic_id — single JWT claim source of truth.
+-- Both functions read from app_metadata.clinic_id — single JWT claim source.
 CREATE OR REPLACE FUNCTION get_my_clinic_id()
 RETURNS BIGINT AS $$
   SELECT get_clinic_id();
 $$ LANGUAGE sql STABLE;
 
--- get_my_role() returns the role name from JWT app_metadata
+-- get_my_role() returns the authenticated user's role from JWT app_metadata.
 CREATE OR REPLACE FUNCTION get_my_role()
 RETURNS TEXT AS $$
   SELECT auth.jwt() -> 'app_metadata' ->> 'role';
 $$ LANGUAGE sql STABLE;
 
--- ROLES TABLE (lookup for profile roles)
-CREATE TABLE IF NOT EXISTS public.roles (
-  id   SERIAL PRIMARY KEY,
-  name TEXT NOT NULL UNIQUE
-);
-
-INSERT INTO public.roles (name) VALUES
-  ('admin'), ('doctor'), ('nurse'), ('reception'), ('super_admin'), ('cashier'), ('warehouse_manager')
-ON CONFLICT (name) DO NOTHING;
-
+-- ─────────────────────────────────────────────────────────────────
 -- PROFILES TABLE
--- id = auth.users.id (UUID), clinic_id = clinics.id (BIGINT)
+-- id UUID = auth.users.id (primary key, no separate user_id column)
+-- clinic_id BIGINT references clinics.id (BIGINT, matches initial_schema)
+-- role TEXT  — compatible with analytics_rpc, plans_subscriptions, atomic_rpc
+-- ─────────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.profiles (
   id         UUID PRIMARY KEY,
   clinic_id  BIGINT REFERENCES clinics(id) ON DELETE RESTRICT,
   full_name  TEXT NOT NULL,
-  role_id    INTEGER NOT NULL REFERENCES public.roles(id),
-  last_seen  TIMESTAMPTZ,
+  role       TEXT NOT NULL CHECK (role IN ('super_admin','admin','doctor','cashier','nurse','reception','warehouse_manager')),
   is_active  BOOLEAN NOT NULL DEFAULT TRUE,
+  last_seen  TIMESTAMPTZ,
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
@@ -52,7 +51,9 @@ WITH CHECK (
   OR clinic_id = get_my_clinic_id()
 );
 
--- CLINICS RLS (using get_my_role / get_my_clinic_id)
+-- ─────────────────────────────────────────────────────────────────
+-- CLINICS RLS (super_admin sees all; clinic members see their own)
+-- ─────────────────────────────────────────────────────────────────
 DROP POLICY IF EXISTS "clinic_access" ON public.clinics;
 CREATE POLICY "clinic_access"
 ON public.clinics FOR ALL
@@ -61,7 +62,9 @@ USING (
   OR id = get_my_clinic_id()
 );
 
--- PATIENTS RLS update to use BIGINT helper
+-- ─────────────────────────────────────────────────────────────────
+-- PATIENTS RLS — ensure consistency with initial_schema helper
+-- ─────────────────────────────────────────────────────────────────
 DROP POLICY IF EXISTS "Clinic isolation" ON public.patients;
 CREATE POLICY "Clinic isolation"
 ON public.patients FOR ALL

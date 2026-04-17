@@ -113,7 +113,8 @@ export interface AppPermission {
 export interface ProfileWithRole {
   id: string;
   clinic_id: string | number | null;
-  roles: { name: string } | null;
+  role?: string;
+  roles?: { name: string } | null;
   [key: string]: unknown;
 }
 
