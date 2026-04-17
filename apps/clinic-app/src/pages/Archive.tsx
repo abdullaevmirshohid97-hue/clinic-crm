@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { db } from '../utils/db';
+import { supabase } from '../utils/supabase';
 import { useToast } from '../components/ui/Toast';
 import type { ArchiveRecord } from '../types/clinic';
 
@@ -16,33 +16,93 @@ export default function Archive() {
     setLoading(true);
     try {
       if (activeTab === 'transactions') {
-        const query = `
-          SELECT t.*, p.fullName, p.phone, d.fullName as doctorName, s.name as serviceName
-          FROM (
-             SELECT id, patientId, 'outpatient' as type, item_name as description, amount, payment_type as paymentType, createdAt, doctor_id, service_id FROM appointments
-             UNION ALL
-             SELECT id, patientId, 'inpatient' as type, 'Statsionar' as description, amount, paymentType, createdAt, 0 as doctor_id, 0 as service_id FROM room_patients
-          ) t
-          LEFT JOIN patients p ON t.patientId = p.id
-          LEFT JOIN doctors d ON t.doctor_id = d.id
-          LEFT JOIN services s ON t.service_id = s.id
-          WHERE strftime('%Y', t.createdAt) = ?
-          ORDER BY t.createdAt DESC
-          LIMIT 300
-        `;
-        const res = await db.query<ArchiveRecord>(query, [`${year}`]);
-        setArchiveData(res);
+        const startOfYear = `${year}-01-01T00:00:00`;
+        const endOfYear = `${year}-12-31T23:59:59.999`;
+
+        const [apptResult, roomResult] = await Promise.all([
+          supabase
+            .from('appointments')
+            .select(
+              'id, patientId, amount, paymentType, createdAt, patients(fullName, phone), svc:services!serviceId(name)'
+            )
+            .gte('createdAt', startOfYear)
+            .lte('createdAt', endOfYear)
+            .order('createdAt', { ascending: false })
+            .limit(200),
+          supabase
+            .from('room_patients')
+            .select('id, patientId, totalCost, entryDate, patients(fullName, phone)')
+            .gte('entryDate', startOfYear)
+            .lte('entryDate', endOfYear)
+            .order('entryDate', { ascending: false })
+            .limit(200),
+        ]);
+
+        if (apptResult.error) throw apptResult.error;
+        if (roomResult.error) throw roomResult.error;
+
+        const apptRecords: ArchiveRecord[] = (apptResult.data ?? []).map((r) => {
+          const pat = r.patients as { fullName?: string; phone?: string } | null;
+          const svc = r.svc as { name?: string } | null;
+          return {
+            id: r.id as number,
+            type: 'outpatient',
+            description: svc?.name || 'Qabulxona',
+            amount: r.amount as number | undefined,
+            paymentType: r.paymentType as string | undefined,
+            createdAt: r.createdAt as string | undefined,
+            fullName: pat?.fullName,
+            phone: pat?.phone,
+          };
+        });
+
+        const roomRecords: ArchiveRecord[] = (roomResult.data ?? []).map((r) => {
+          const pat = r.patients as { fullName?: string; phone?: string } | null;
+          return {
+            id: (r.id as number) + 10_000_000,
+            type: 'inpatient',
+            description: 'Statsionar',
+            amount: r.totalCost as number | undefined,
+            paymentType: undefined,
+            createdAt: r.entryDate as string | undefined,
+            fullName: pat?.fullName,
+            phone: pat?.phone,
+          };
+        });
+
+        const combined = [...apptRecords, ...roomRecords]
+          .sort(
+            (a, b) => new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime()
+          )
+          .slice(0, 300);
+
+        setArchiveData(combined);
       } else {
-        const res = await db.query<ArchiveRecord>(
-          `
-          SELECT * FROM patients
-          WHERE id NOT IN (SELECT DISTINCT patientId FROM appointments WHERE strftime('%Y', createdAt) > ?)
-          AND id NOT IN (SELECT DISTINCT patientId FROM room_patients WHERE strftime('%Y', createdAt) > ?)
-          LIMIT 150
-        `,
-          [`${year}`, `${year}`]
-        );
-        setArchiveData(res);
+        const cutoffStart = `${year}-01-01T00:00:00`;
+
+        const [patientsResult, activeApptResult, activeTxnResult] = await Promise.all([
+          supabase.from('patients').select('id, fullName, phone, createdAt').order('fullName'),
+          supabase.from('appointments').select('patientId').gte('createdAt', cutoffStart),
+          supabase.from('transactions').select('patientId').gte('createdAt', cutoffStart),
+        ]);
+
+        if (patientsResult.error) throw patientsResult.error;
+
+        const activeIds = new Set<number>();
+        (activeApptResult.data ?? []).forEach((r) => activeIds.add(r.patientId as number));
+        (activeTxnResult.data ?? []).forEach((r) => activeIds.add(r.patientId as number));
+
+        const inactive: ArchiveRecord[] = (patientsResult.data ?? [])
+          .filter((p) => !activeIds.has(p.id as number))
+          .map((p) => ({
+            id: p.id as number,
+            type: 'patient',
+            fullName: p.fullName as string | undefined,
+            phone: p.phone as string | undefined,
+            createdAt: p.createdAt as string | undefined,
+          }));
+
+        setArchiveData(inactive);
       }
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : String(e));
@@ -271,12 +331,16 @@ export default function Archive() {
                             </span>
                           </td>
                           <td>
-                            <span
-                              className={`badge ${t.paymentType === 'cash' ? 'badge-success' : 'badge-info'}`}
-                              style={{ textTransform: 'uppercase' }}
-                            >
-                              {t.paymentType}
-                            </span>
+                            {t.paymentType ? (
+                              <span
+                                className={`badge ${t.paymentType === 'cash' ? 'badge-success' : 'badge-info'}`}
+                                style={{ textTransform: 'uppercase' }}
+                              >
+                                {t.paymentType}
+                              </span>
+                            ) : (
+                              <span className="badge badge-outline">—</span>
+                            )}
                           </td>
                           <td
                             style={{
@@ -293,7 +357,7 @@ export default function Archive() {
                     {archiveData.length === 0 && !loading && (
                       <tr>
                         <td colSpan={5} className="p-10 text-center opacity-50">
-                          Joriy yilda arxivlangan xujjatlar topilmadi...
+                          {year}-yilda arxivlangan ma&apos;lumotlar topilmadi...
                         </td>
                       </tr>
                     )}
@@ -357,7 +421,7 @@ export default function Archive() {
                     {archiveData.length === 0 && !loading && (
                       <tr>
                         <td colSpan={4} className="p-10 text-center opacity-50">
-                          Filter bo'yicha ma'lumot topilmadi
+                          Filter bo&apos;yicha ma&apos;lumot topilmadi
                         </td>
                       </tr>
                     )}

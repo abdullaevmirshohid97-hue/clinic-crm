@@ -1,19 +1,17 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { db } from '../utils/db';
+import { supabase } from '../utils/supabase';
 import { useToast } from '../components/ui/Toast';
 import Modal from '../components/ui/Modal';
 import type { PatientLTVRecord, CampaignRecord } from '../types/clinic';
 
 export default function Marketing() {
   const toast = useToast();
-  const [activeTab, setActiveTab] = useState('segments'); // segments, campaigns
+  const [activeTab, setActiveTab] = useState('segments');
   const [loading, setLoading] = useState(true);
 
-  // Data
   const [patientsLTV, setPatientsLTV] = useState<PatientLTVRecord[]>([]);
   const [campaigns, setCampaigns] = useState<CampaignRecord[]>([]);
 
-  // Campaign Form
   const [showCampaignModal, setShowCampaignModal] = useState(false);
   const [campaignForm, setCampaignForm] = useState({
     id: null as number | null,
@@ -27,25 +25,50 @@ export default function Marketing() {
     setLoading(true);
     try {
       if (activeTab === 'segments') {
-        const ltvData = await db.query<PatientLTVRecord>(`
-          SELECT p.id, p.fullName, p.phone, p.createdAt,
-                 COALESCE(SUM(t.amount), 0) as ltv,
-                 MAX(t.createdAt) as lastVisit
-          FROM patients p
-          LEFT JOIN (
-             SELECT patientId, amount, createdAt FROM appointments
-             UNION ALL
-             SELECT patientId, amount, createdAt FROM room_patients
-          ) t ON p.id = t.patientId
-          GROUP BY p.id
-          ORDER BY ltv DESC
-        `);
-        setPatientsLTV(ltvData);
+        const [patientsResult, txnsResult] = await Promise.all([
+          supabase.from('patients').select('id, fullName, phone, createdAt'),
+          supabase.from('transactions').select('patientId, amount, createdAt'),
+        ]);
+
+        if (patientsResult.error) throw patientsResult.error;
+        if (txnsResult.error) throw txnsResult.error;
+
+        const ltvMap = new Map<number, { ltv: number; lastVisit: string | null }>();
+        (txnsResult.data ?? []).forEach((t) => {
+          const pid = t.patientId as number;
+          const existing = ltvMap.get(pid) ?? { ltv: 0, lastVisit: null };
+          const amt = (t.amount as number) || 0;
+          const ts = t.createdAt as string | null;
+          ltvMap.set(pid, {
+            ltv: existing.ltv + amt,
+            lastVisit:
+              !existing.lastVisit || (ts && ts > existing.lastVisit)
+                ? (ts ?? existing.lastVisit)
+                : existing.lastVisit,
+          });
+        });
+
+        const records: PatientLTVRecord[] = (patientsResult.data ?? []).map((p) => {
+          const entry = ltvMap.get(p.id as number);
+          return {
+            id: p.id as number,
+            fullName: p.fullName as string,
+            phone: (p.phone as string | null) ?? undefined,
+            createdAt: (p.createdAt as string | null) ?? undefined,
+            ltv: entry?.ltv ?? 0,
+            lastVisit: entry?.lastVisit ?? undefined,
+          };
+        });
+
+        records.sort((a, b) => b.ltv - a.ltv);
+        setPatientsLTV(records);
       } else {
-        const camps = await db.query<CampaignRecord>(
-          'SELECT * FROM marketing_campaigns ORDER BY id DESC'
-        );
-        setCampaigns(camps);
+        const { data, error } = await supabase
+          .from('marketing_campaigns')
+          .select('*')
+          .order('id', { ascending: false });
+        if (error) throw error;
+        setCampaigns((data ?? []) as CampaignRecord[]);
       }
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : String(e));
@@ -61,19 +84,19 @@ export default function Marketing() {
     if (!campaignForm.name || !campaignForm.content) return toast.error("To'ldiring");
     try {
       if (campaignForm.id) {
-        await db.run(
-          'UPDATE marketing_campaigns SET name=?, type=?, targetGroup=?, content=? WHERE id=?',
-          [
-            campaignForm.name,
-            campaignForm.type,
-            campaignForm.targetGroup,
-            campaignForm.content,
-            campaignForm.id,
-          ]
-        );
+        const { error } = await supabase
+          .from('marketing_campaigns')
+          .update({
+            name: campaignForm.name,
+            type: campaignForm.type,
+            targetGroup: campaignForm.targetGroup,
+            content: campaignForm.content,
+          })
+          .eq('id', campaignForm.id);
+        if (error) throw error;
         toast.success('Yangilandi');
       } else {
-        await db.insert('marketing_campaigns', {
+        const { error } = await supabase.from('marketing_campaigns').insert({
           name: campaignForm.name,
           type: campaignForm.type,
           targetGroup: campaignForm.targetGroup,
@@ -81,6 +104,7 @@ export default function Marketing() {
           startDate: new Date().toISOString(),
           status: 'active',
         });
+        if (error) throw error;
         toast.success('Kampaniya boshlandi!');
       }
       setShowCampaignModal(false);
@@ -93,10 +117,11 @@ export default function Marketing() {
   async function stopCampaign(id: number | string) {
     if (!window.confirm("Buni to'xtatmoqchimisiz?")) return;
     try {
-      await db.run(
-        "UPDATE marketing_campaigns SET status='completed', endDate=datetime('now','localtime') WHERE id=?",
-        [id]
-      );
+      const { error } = await supabase
+        .from('marketing_campaigns')
+        .update({ status: 'completed', endDate: new Date().toISOString() })
+        .eq('id', id);
+      if (error) throw error;
       toast.success("Kampaniya to'xtatildi");
       loadData();
     } catch (e: unknown) {
@@ -108,7 +133,6 @@ export default function Marketing() {
     return Number(n || 0).toLocaleString('uz-UZ');
   }
 
-  // Segmentation Logic
   const top10 = patientsLTV.slice(0, 10);
 
   const threeMonthsAgo = new Date();
@@ -144,7 +168,6 @@ export default function Marketing() {
       </div>
 
       <div className="settings-layout" style={{ display: 'flex', gap: 20 }}>
-        {/* Sidebar Nav */}
         <div
           className="settings-sidebar card glass-card"
           style={{ width: 320, alignSelf: 'flex-start', padding: 20 }}
@@ -247,7 +270,6 @@ export default function Marketing() {
           </div>
         </div>
 
-        {/* Content */}
         <div className="settings-content" style={{ flex: 1, minWidth: 0 }}>
           {activeTab === 'segments' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
@@ -340,6 +362,13 @@ export default function Marketing() {
                       </tr>
                     </thead>
                     <tbody>
+                      {top10.length === 0 && !loading && (
+                        <tr>
+                          <td colSpan={4} className="p-10 text-center opacity-50">
+                            Ma&apos;lumot topilmadi
+                          </td>
+                        </tr>
+                      )}
                       {top10.map((p) => (
                         <tr key={p.id} style={{ height: 65, fontSize: 15 }}>
                           <td>
@@ -424,7 +453,7 @@ export default function Marketing() {
                               className="btn btn-sm btn-ghost text-danger"
                               onClick={() => stopCampaign(c.id)}
                             >
-                              ⏹️ To'xtatish
+                              ⏹️ To&apos;xtatish
                             </button>
                           )}
                         </td>
@@ -445,7 +474,6 @@ export default function Marketing() {
         </div>
       </div>
 
-      {/* Campaign Modal */}
       <Modal
         isOpen={showCampaignModal}
         onClose={() => setShowCampaignModal(false)}
@@ -520,10 +548,10 @@ export default function Marketing() {
                 marginBottom: 5,
               }}
             >
-              ℹ️ Muhim ma'lumot
+              ℹ️ Muhim ma&apos;lumot
             </div>
             <div style={{ fontSize: 12, opacity: 0.8 }}>
-              SMS kampaniyalar tanlangan provayder API orqali real vaqtda jo'natiladi. Iltimos
+              SMS kampaniyalar tanlangan provayder API orqali real vaqtda jo&apos;natiladi. Iltimos
               matnni va targetni qayta tekshiring.
             </div>
           </div>
