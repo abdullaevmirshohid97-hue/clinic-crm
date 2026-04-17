@@ -1,14 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from '../../i18n/LanguageContext';
 import { useToast } from '../../components/ui/Toast';
-import { analyticsApi } from '../../services/clinic.api';
+import { supabase } from '../../utils/supabase';
 
 export default function Dashboard({ onNavigate }: { onNavigate?: (page: string) => void }) {
   const { t } = useTranslation();
   const toast = useToast();
   const [loading, setLoading] = useState(true);
 
-  // States mapping to modular APIs
   const [stats, setStats] = useState({
     revenue_today: 0,
     patients_today: 0,
@@ -18,14 +17,48 @@ export default function Dashboard({ onNavigate }: { onNavigate?: (page: string) 
 
   const loadAll = useCallback(async () => {
     try {
-      // 1. Fetch live metrics from Analytics API
-      const metricsRes = await analyticsApi.getDashboard();
-      if (metricsRes.data) {
-        setStats(metricsRes.data);
-      }
+      const today = new Date().toISOString().split('T')[0];
+      const startOfDay = `${today}T00:00:00`;
+      const endOfDay = `${today}T23:59:59.999`;
+
+      const [txnResult, apptResult, activeRoomResult, totalRoomResult] = await Promise.all([
+        supabase
+          .from('transactions')
+          .select('amount')
+          .gte('createdAt', startOfDay)
+          .lte('createdAt', endOfDay),
+        supabase
+          .from('appointments')
+          .select('id, doctorId')
+          .gte('createdAt', startOfDay)
+          .lte('createdAt', endOfDay),
+        supabase.from('room_patients').select('id').eq('status', 'active'),
+        supabase.from('rooms').select('id'),
+      ]);
+
+      const revenueToday = (txnResult.data ?? []).reduce(
+        (sum, r) => sum + (Number(r.amount) || 0),
+        0
+      );
+
+      const patientsToday = (apptResult.data ?? []).length;
+
+      const activeRooms = (activeRoomResult.data ?? []).length;
+      const totalRooms = (totalRoomResult.data ?? []).length;
+      const occupancyRate = totalRooms > 0 ? Math.round((activeRooms / totalRooms) * 100) : 0;
+
+      const uniqueDoctors = new Set((apptResult.data ?? []).map((r) => r.doctorId).filter(Boolean))
+        .size;
+
+      setStats({
+        revenue_today: revenueToday,
+        patients_today: patientsToday,
+        occupancy_rate: occupancyRate,
+        online_staff: uniqueDoctors,
+      });
     } catch (e) {
       console.error(e);
-      toast.error("Glavniy ma'lumotlar yuklanmadi");
+      toast.error("Bosh sahifa ma'lumotlari yuklanmadi");
     } finally {
       setLoading(false);
     }
@@ -85,22 +118,21 @@ export default function Dashboard({ onNavigate }: { onNavigate?: (page: string) 
         <div className="metric-card bg-info-glow">
           <div className="metric-icon">👥</div>
           <div className="metric-data">
-            <div className="metric-title">Onlayn hodimlar</div>
+            <div className="metric-title">Faol shifokorlar</div>
             <div className="metric-value">{stats.online_staff} kishi</div>
           </div>
         </div>
       </div>
 
-      {/* Integration placeholders to prove modular design */}
       <div className="page-body">
         <div className="card glass-card">
-          <div className="card-header">Tizim holati (API Integrated)</div>
+          <div className="card-header">Tizim holati (Supabase Live)</div>
           <div className="card-body">
             <p>
-              <strong>Status:</strong> Barcha tizimlar to'liq API layer orqali ulandi (CTO
-              Architect).
+              <strong>Status:</strong> Barcha ko'rsatkichlar to'g'ridan-to'g'ri Supabase'dan
+              olinmoqda.
             </p>
-            <p>Real-time analytics backend orqali {new Date().toLocaleTimeString()} da yuklandi.</p>
+            <p>Real-time statistika {new Date().toLocaleTimeString('uz-UZ')} da yuklandi.</p>
             <div style={{ marginTop: 20 }}>
               <button className="btn btn-primary" onClick={() => onNavigate?.('reception')}>
                 📝 Registratura
