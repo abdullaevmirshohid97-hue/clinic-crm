@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from '../../i18n/LanguageContext';
 import { useToast } from '../../components/ui/Toast';
 import { db } from '../../utils/db';
+import { supabase } from '../../utils/supabase';
 import Modal from '../../components/ui/Modal';
 import type { TransactionRecord, ShiftRecord } from '../../types/clinic';
 
@@ -30,10 +31,14 @@ export default function Cashier() {
 
   const loadActiveShift = useCallback(async () => {
     try {
-      const active = await db.query<ShiftRecord>(
-        "SELECT * FROM shifts WHERE status = 'active' ORDER BY id DESC LIMIT 1"
-      );
-      if (active.length > 0) setActiveShift(active[0]);
+      const { data } = await supabase
+        .from('shifts')
+        .select('*')
+        .eq('status', 'active')
+        .order('id', { ascending: false })
+        .limit(1);
+      if (data && data.length > 0) setActiveShift(data[0] as ShiftRecord);
+      else setActiveShift(null);
     } catch (_e: unknown) {
       /* ignore load errors */
     }
@@ -41,27 +46,41 @@ export default function Cashier() {
 
   const loadTransactions = useCallback(async () => {
     try {
-      const rows = await db.query<TransactionRecord>(
-        `
-        SELECT t.*, 
-               p.fullName as patientNameStr, p.phone as patientPhone,
-               d.fullName as doctorNameStr, 
-               sv.name as serviceName,
-               s.type as shiftType,
-               (SELECT r.name FROM room_patients rp JOIN rooms r ON rp.roomId = r.id WHERE rp.patientId = t.patientId AND rp.status = 'active' LIMIT 1) as activeRoom,
-               (SELECT (COALESCE(SUM(debt), 0) - (SELECT COALESCE(SUM(amount), 0) FROM transactions WHERE patientId = t.patientId AND type = 'payment' AND paymentType != 'debt')) 
-                FROM transactions WHERE patientId = t.patientId) as patientBalance
-        FROM transactions t
-        LEFT JOIN appointments a ON t.appointmentId = a.id
-        LEFT JOIN services sv ON a.serviceId = sv.id
-        LEFT JOIN patients p ON t.patientId = p.id
-        LEFT JOIN doctors d ON t.doctor_id = d.id
-        LEFT JOIN shifts s ON t.shift_id = s.id
-        WHERE date(t.createdAt) = ?
-        ORDER BY t.id DESC
-      `,
-        [date]
-      );
+      const startOfDay = `${date}T00:00:00`;
+      const endOfDay = `${date}T23:59:59.999`;
+
+      const { data: txData, error: txErr } = await supabase
+        .from('transactions')
+        .select('*, patients(fullName, phone), doctors(fullName)')
+        .gte('createdAt', startOfDay)
+        .lte('createdAt', endOfDay)
+        .order('id', { ascending: false });
+
+      if (txErr) throw txErr;
+
+      const txRows = txData ?? [];
+
+      // Fetch shift types for any shift_ids present in transactions
+      const shiftIds = [...new Set(txRows.map((r) => r.shift_id).filter(Boolean))];
+      const shiftMap: Record<number, string> = {};
+      if (shiftIds.length > 0) {
+        const { data: shiftsData } = await supabase
+          .from('shifts')
+          .select('id, type')
+          .in('id', shiftIds as number[]);
+        (shiftsData ?? []).forEach((s) => {
+          shiftMap[s.id as number] = s.type as string;
+        });
+      }
+
+      const rows = txRows.map((r) => ({
+        ...r,
+        patientNameStr: (r.patients as { fullName?: string } | null)?.fullName,
+        patientPhone: (r.patients as { phone?: string } | null)?.phone,
+        doctorNameStr: (r.doctors as { fullName?: string } | null)?.fullName,
+        shiftType: shiftMap[r.shift_id as number] ?? undefined,
+      })) as TransactionRecord[];
+
       setTransactions(rows);
 
       // Calculate Stats
