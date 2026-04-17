@@ -15,11 +15,13 @@ import Modal from '../components/ui/Modal';
 
 export default function Laboratory() {
   const toast = useToast();
-  const [activeTab, setActiveTab] = useState('workflow'); // workflow, templates
+  const [activeTab, setActiveTab] = useState('workflow'); // workflow, templates, history
   const [tests, setTests] = useState<LabTest[]>([]);
   const [templates, setTemplates] = useState<LabTestTemplate[]>([]);
   const [patients, setPatients] = useState<LabPatient[]>([]);
   const [loading, setLoading] = useState(true);
+  const [historyDate, setHistoryDate] = useState(new Date().toISOString().split('T')[0]);
+  const [history, setHistory] = useState<LabTest[]>([]);
 
   // Modals
   const [showTestModal, setShowTestModal] = useState(false);
@@ -65,6 +67,25 @@ export default function Laboratory() {
         if (ptErr) throw ptErr;
         setPatients((ptData ?? []) as LabPatient[]);
       }
+      if (activeTab === 'history') {
+        const startOfDay = `${historyDate}T00:00:00`;
+        const endOfDay = `${historyDate}T23:59:59.999`;
+        const { data: hData, error: hErr } = await supabase
+          .from('laboratory_tests')
+          .select('*, patients(fullName, phone), orderedBy:doctors(fullName)')
+          .gte('createdAt', startOfDay)
+          .lte('createdAt', endOfDay)
+          .order('createdAt', { ascending: false });
+        if (hErr) throw hErr;
+        const mapped = (hData ?? []).map((r) => ({
+          ...r,
+          patientName: (r.patients as { fullName?: string } | null)?.fullName,
+          phone: (r.patients as { phone?: string } | null)?.phone,
+          doctorName: (r.orderedBy as { fullName?: string } | null)?.fullName,
+        }));
+        setHistory(mapped as LabTest[]);
+      }
+
       // Always load templates
       const tpls = await db.getAllRows<LabTestTemplate>('laboratory_templates');
       setTemplates(tpls);
@@ -72,7 +93,7 @@ export default function Laboratory() {
       toast.error(e instanceof Error ? e.message : String(e));
     }
     setLoading(false);
-  }, [activeTab, toast]);
+  }, [activeTab, historyDate, toast]);
 
   useEffect(() => {
     loadData();
@@ -652,6 +673,51 @@ export default function Laboratory() {
                 </div>
               </div>
             </button>
+            <button
+              onClick={() => setActiveTab('history')}
+              style={{
+                textAlign: 'left',
+                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                padding: '16px 20px',
+                borderRadius: '14px',
+                border:
+                  activeTab === 'history'
+                    ? '1px solid var(--accent-warning)'
+                    : '1px solid var(--border-color)',
+                background: activeTab === 'history' ? 'rgba(245,158,11,0.1)' : 'var(--bg-input)',
+                display: 'flex',
+                gap: 15,
+                alignItems: 'center',
+                cursor: 'pointer',
+                boxShadow: activeTab === 'history' ? '0 4px 15px rgba(245,158,11,0.1)' : 'none',
+              }}
+            >
+              <span
+                style={{
+                  fontSize: 32,
+                  padding: 10,
+                  background: 'rgba(255,255,255,0.1)',
+                  borderRadius: '12px',
+                }}
+              >
+                📜
+              </span>
+              <div>
+                <div
+                  style={{
+                    fontWeight: 800,
+                    fontSize: 15,
+                    color:
+                      activeTab === 'history' ? 'var(--accent-warning)' : 'var(--text-primary)',
+                  }}
+                >
+                  Tahlil Tarixi
+                </div>
+                <div style={{ fontSize: 12, opacity: 0.7, marginTop: 4 }}>
+                  Sana bo'yicha filtrlash va arxiv ko'rish.
+                </div>
+              </div>
+            </button>
           </div>
         </div>
 
@@ -907,6 +973,94 @@ export default function Laboratory() {
                           Shablonlar yo'q...
                         </td>
                       </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'history' && (
+            <div className="card glass-card">
+              <div
+                className="card-header"
+                style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+              >
+                <h3>📜 Tahlil Tarixi</h3>
+                <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                  <input
+                    type="date"
+                    className="form-input form-input-sm"
+                    value={historyDate}
+                    onChange={(e) => setHistoryDate(e.target.value)}
+                  />
+                  <span className="badge badge-info">{history.length} ta tahlil</span>
+                </div>
+              </div>
+              <div className="table-wrapper">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Vaqt</th>
+                      <th>Bemor</th>
+                      <th>Tahlil nomi</th>
+                      <th>Shifokor</th>
+                      <th>Holat</th>
+                      <th>Lab ID</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {history.length === 0 ? (
+                      <tr>
+                        <td
+                          colSpan={6}
+                          style={{
+                            textAlign: 'center',
+                            padding: 40,
+                            color: 'var(--text-muted)',
+                          }}
+                        >
+                          {historyDate} sanasida tahlil yo&apos;q.
+                        </td>
+                      </tr>
+                    ) : (
+                      history.map((h) => (
+                        <tr key={h.id}>
+                          <td>
+                            {new Date(h.createdAt ?? '').toLocaleTimeString('uz-UZ', {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}
+                          </td>
+                          <td style={{ fontWeight: 600 }}>{h.patientName || '—'}</td>
+                          <td>{h.testName}</td>
+                          <td>{h.doctorName || '—'}</td>
+                          <td>
+                            <span
+                              className={`badge ${
+                                h.status === 'ready'
+                                  ? 'badge-success'
+                                  : h.status === 'processing'
+                                    ? 'badge-info'
+                                    : h.status === 'sampled'
+                                      ? 'badge-warning'
+                                      : 'badge-secondary'
+                              }`}
+                            >
+                              {h.status === 'ready'
+                                ? '✅ Tayyor'
+                                : h.status === 'processing'
+                                  ? '🔬 Jarayonda'
+                                  : h.status === 'sampled'
+                                    ? '🩸 Namuna'
+                                    : '📋 Kutmoqda'}
+                            </span>
+                          </td>
+                          <td style={{ fontFamily: 'monospace', fontSize: 12 }}>
+                            {h.laboratoryId || `LAB-${h.id}`}
+                          </td>
+                        </tr>
+                      ))
                     )}
                   </tbody>
                 </table>

@@ -75,7 +75,7 @@ export interface LabTest {
   patientId: number;
   patientName: string;
   testName: string;
-  status: 'pending' | 'in_progress' | 'ready';
+  status: 'pending' | 'sampled' | 'processing' | 'in_progress' | 'ready';
   resultJson?: string;
   resultValue?: string;
   gender?: string;
