@@ -11,7 +11,7 @@ export default function Dashboard({ onNavigate }: { onNavigate?: (page: string) 
   const [stats, setStats] = useState({
     revenue_today: 0,
     patients_today: 0,
-    occupancy_rate: 0,
+    active_inpatients: 0,
     online_staff: 0,
   });
 
@@ -21,7 +21,7 @@ export default function Dashboard({ onNavigate }: { onNavigate?: (page: string) 
       const startOfDay = `${today}T00:00:00`;
       const endOfDay = `${today}T23:59:59.999`;
 
-      const [txnResult, apptResult, activeRoomResult, totalRoomResult] = await Promise.all([
+      const [txnResult, apptResult, activeRoomResult] = await Promise.all([
         supabase
           .from('transactions')
           .select('amount')
@@ -33,8 +33,12 @@ export default function Dashboard({ onNavigate }: { onNavigate?: (page: string) 
           .gte('createdAt', startOfDay)
           .lte('createdAt', endOfDay),
         supabase.from('room_patients').select('id').eq('status', 'active'),
-        supabase.from('rooms').select('id'),
       ]);
+
+      if (txnResult.error) throw new Error(`Transactions: ${txnResult.error.message}`);
+      if (apptResult.error) throw new Error(`Appointments: ${apptResult.error.message}`);
+      if (activeRoomResult.error)
+        throw new Error(`Room patients: ${activeRoomResult.error.message}`);
 
       const revenueToday = (txnResult.data ?? []).reduce(
         (sum, r) => sum + (Number(r.amount) || 0),
@@ -43,9 +47,7 @@ export default function Dashboard({ onNavigate }: { onNavigate?: (page: string) 
 
       const patientsToday = (apptResult.data ?? []).length;
 
-      const activeRooms = (activeRoomResult.data ?? []).length;
-      const totalRooms = (totalRoomResult.data ?? []).length;
-      const occupancyRate = totalRooms > 0 ? Math.round((activeRooms / totalRooms) * 100) : 0;
+      const activeInpatients = (activeRoomResult.data ?? []).length;
 
       const uniqueDoctors = new Set((apptResult.data ?? []).map((r) => r.doctorId).filter(Boolean))
         .size;
@@ -53,7 +55,7 @@ export default function Dashboard({ onNavigate }: { onNavigate?: (page: string) 
       setStats({
         revenue_today: revenueToday,
         patients_today: patientsToday,
-        occupancy_rate: occupancyRate,
+        active_inpatients: activeInpatients,
         online_staff: uniqueDoctors,
       });
     } catch (e) {
@@ -94,7 +96,7 @@ export default function Dashboard({ onNavigate }: { onNavigate?: (page: string) 
         <div className="metric-card bg-primary-glow">
           <div className="metric-icon">💰</div>
           <div className="metric-data">
-            <div className="metric-title">Kassa (Naqd)</div>
+            <div className="metric-title">Kassa (Bugun)</div>
             <div className="metric-value">{formatPrice(stats.revenue_today)} so'm</div>
           </div>
         </div>
@@ -102,7 +104,7 @@ export default function Dashboard({ onNavigate }: { onNavigate?: (page: string) 
         <div className="metric-card bg-success-glow">
           <div className="metric-icon">💳</div>
           <div className="metric-data">
-            <div className="metric-title">Tibbiy ko'riklar</div>
+            <div className="metric-title">Tibbiy ko'riklar (Bugun)</div>
             <div className="metric-value">{stats.patients_today} ta</div>
           </div>
         </div>
@@ -110,8 +112,8 @@ export default function Dashboard({ onNavigate }: { onNavigate?: (page: string) 
         <div className="metric-card bg-warning-glow">
           <div className="metric-icon">🛏️</div>
           <div className="metric-data">
-            <div className="metric-title">Bandlik (Stasionar)</div>
-            <div className="metric-value">{stats.occupancy_rate}%</div>
+            <div className="metric-title">Faol Statsionar</div>
+            <div className="metric-value">{stats.active_inpatients} bemor</div>
           </div>
         </div>
 
