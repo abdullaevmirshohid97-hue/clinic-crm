@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { db } from '../utils/db';
+import { supabase } from '../utils/supabase';
 import type {
   LabTest,
   LabTestTemplate,
@@ -41,20 +42,32 @@ export default function Laboratory() {
     setLoading(true);
     try {
       if (activeTab === 'workflow') {
-        const ts = await db.query(`
-          SELECT lt.*, p.fullName as patientName, p.phone, p.gender, p.birthDate, d.fullName as doctorName 
-          FROM laboratory_tests lt
-          LEFT JOIN patients p ON lt.patientId = p.id
-          LEFT JOIN doctors d ON lt.orderedBy = d.id
-          ORDER BY lt.createdAt DESC
-        `);
-        setTests(ts as LabTest[]);
-        const pt = await db.query<LabPatient>('SELECT * FROM patients ORDER BY fullName ASC');
-        setPatients(pt);
+        const { data: tsData, error: tsErr } = await supabase
+          .from('laboratory_tests')
+          .select('*, patients(fullName, phone, gender, birthDate), orderedBy:doctors(fullName)')
+          .order('createdAt', { ascending: false });
+        if (tsErr) throw tsErr;
+
+        const mappedTests = (tsData ?? []).map((r) => ({
+          ...r,
+          patientName: (r.patients as { fullName?: string } | null)?.fullName,
+          phone: (r.patients as { phone?: string } | null)?.phone,
+          gender: (r.patients as { gender?: string } | null)?.gender,
+          birthDate: (r.patients as { birthDate?: string } | null)?.birthDate,
+          doctorName: (r.orderedBy as { fullName?: string } | null)?.fullName,
+        }));
+        setTests(mappedTests as LabTest[]);
+
+        const { data: ptData, error: ptErr } = await supabase
+          .from('patients')
+          .select('id, fullName, phone, gender')
+          .order('fullName');
+        if (ptErr) throw ptErr;
+        setPatients((ptData ?? []) as LabPatient[]);
       }
       // Always load templates
-      const tpls = await db.query('SELECT * FROM laboratory_templates');
-      setTemplates(tpls as LabTestTemplate[]);
+      const tpls = await db.getAllRows<LabTestTemplate>('laboratory_templates');
+      setTemplates(tpls);
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : String(e));
     }
@@ -138,16 +151,16 @@ export default function Laboratory() {
     const jsonStr = JSON.stringify(templateForm.fields);
     try {
       if (templateForm.id) {
-        await db.run(
-          'UPDATE laboratory_templates SET testName=?, category=?, price=?, fieldsJson=? WHERE id=?',
-          [
-            templateForm.testName,
-            templateForm.category,
-            templateForm.price,
-            jsonStr,
-            templateForm.id,
-          ]
-        );
+        const { error: updErr } = await supabase
+          .from('laboratory_templates')
+          .update({
+            testName: templateForm.testName,
+            category: templateForm.category,
+            price: templateForm.price,
+            fieldsJson: jsonStr,
+          })
+          .eq('id', templateForm.id);
+        if (updErr) throw updErr;
         toast.success('Yangilandi');
       } else {
         await db.insert('laboratory_templates', {
@@ -205,11 +218,10 @@ export default function Laboratory() {
 
   async function updateTestStatus(id: number | string, newStatus: string) {
     try {
-      const q =
-        newStatus === 'ready'
-          ? "UPDATE laboratory_tests SET status=?, completedAt=datetime('now','localtime') WHERE id=?"
-          : 'UPDATE laboratory_tests SET status=? WHERE id=?';
-      await db.run(q, [newStatus, id]);
+      const payload: Record<string, unknown> = { status: newStatus };
+      if (newStatus === 'ready') payload.completedAt = new Date().toISOString();
+      const { error } = await supabase.from('laboratory_tests').update(payload).eq('id', id);
+      if (error) throw error;
       loadData();
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : String(e));
@@ -240,10 +252,15 @@ export default function Laboratory() {
 
     let historicalData: LabTestTemplateField[] = [];
     try {
-      const hist = await db.query(
-        `SELECT resultJson FROM laboratory_tests WHERE patientId=? AND testName=? AND id!=? AND status='ready' ORDER BY createdAt DESC LIMIT 1`,
-        [tst.patientId, tst.testName, tst.id]
-      );
+      const { data: hist } = await supabase
+        .from('laboratory_tests')
+        .select('resultJson')
+        .eq('patientId', tst.patientId)
+        .eq('testName', tst.testName)
+        .eq('status', 'ready')
+        .neq('id', tst.id)
+        .order('createdAt', { ascending: false })
+        .limit(1);
       if (hist && hist.length > 0) {
         historicalData =
           (JSON.parse(String(hist[0].resultJson) || '{}') as { fields?: LabTestTemplateField[] })
@@ -347,13 +364,15 @@ export default function Laboratory() {
         });
       }
 
-      await db.run(
-        "UPDATE laboratory_tests SET resultJson=?, status='ready', completedAt=datetime('now','localtime') WHERE id=?",
-        [
-          JSON.stringify({ fields: processedResults, legacy: resultData['__legacy'] }),
-          activeTest.id,
-        ]
-      );
+      const { error: saveErr } = await supabase
+        .from('laboratory_tests')
+        .update({
+          resultJson: JSON.stringify({ fields: processedResults, legacy: resultData['__legacy'] }),
+          status: 'ready',
+          completedAt: new Date().toISOString(),
+        })
+        .eq('id', activeTest.id);
+      if (saveErr) throw saveErr;
 
       // Audit LOG
       try {
