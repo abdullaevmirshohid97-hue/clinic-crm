@@ -66,7 +66,7 @@ Requires `.env` file with `SUPABASE_DB_URL` set.
 
 ## Migrations
 
-9 migration files in `supabase/migrations/`:
+10 migration files in `supabase/migrations/`:
 1. `20260405185031_initial_schema.sql` - Core tables (patients, doctors, clinics)
 2. `20260412230000_tenant_auth.sql` - Tenant authentication & RLS
 3. `20260412233000_analytics_rpc.sql` - Analytics RPC functions
@@ -76,6 +76,10 @@ Requires `.env` file with `SUPABASE_DB_URL` set.
 7. `20260415000200_inpatient_module.sql` - Inpatient module
 8. `20260415000300_doctor_payouts.sql` - Doctor payouts
 9. `20260415000400_pharmacy_journal_fix.sql` - Pharmacy journal fix
+10. `20260416000000_rls_remaining_tables.sql` - RLS for remaining tables (inventory, inventory_transactions, pharmacy, audit_log, consumables_mapping, marketing_campaigns, app_permissions). Note: `cleaning` is a status field on the `rooms` table (already RLS-protected), not a separate table.
+
+### RLS Policy Summary
+All clinic-scoped tables use `FOR ALL USING (clinic_id = get_clinic_id())` where `get_clinic_id()` resolves from the JWT `app_metadata`. The `app_permissions` table (global registry) is read-only for all authenticated users and write-protected to super_admins.
 
 ## Deployment
 Configured as a static site deployment:
