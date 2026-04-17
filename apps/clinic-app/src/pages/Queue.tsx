@@ -85,7 +85,7 @@ export default function Queue() {
 
     try {
       const today = new Date().toISOString().split('T')[0];
-      const { data: lastTicket } = await supabase
+      const { data: lastTicket, error: ticketErr } = await supabase
         .from('queue')
         .select('number')
         .eq('doctorId', selectedDoctor.id)
@@ -93,6 +93,7 @@ export default function Queue() {
         .lte('createdAt', `${today}T23:59:59.999`)
         .order('number', { ascending: false })
         .limit(1);
+      if (ticketErr) throw ticketErr;
       const nextNum = ((lastTicket?.[0]?.number as number) || 0) + 1;
       const prefix = selectedDoctor.prefix || 'A';
 
