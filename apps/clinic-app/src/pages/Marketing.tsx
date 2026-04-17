@@ -129,6 +129,18 @@ export default function Marketing() {
     }
   }
 
+  async function deleteCampaign(id: number | string) {
+    if (!window.confirm("Kampaniyani o'chirishni tasdiqlaysizmi?")) return;
+    try {
+      const { error } = await supabase.from('marketing_campaigns').delete().eq('id', id);
+      if (error) throw error;
+      toast.success("Kampaniya o'chirildi");
+      loadData();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : String(e));
+    }
+  }
+
   function formatPrice(n: number | string | null | undefined) {
     return Number(n || 0).toLocaleString('uz-UZ');
   }
@@ -448,14 +460,22 @@ export default function Marketing() {
                           </span>
                         </td>
                         <td style={{ textAlign: 'center' }}>
-                          {c.status === 'active' && (
+                          <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
+                            {c.status === 'active' && (
+                              <button
+                                className="btn btn-sm btn-ghost text-danger"
+                                onClick={() => stopCampaign(c.id)}
+                              >
+                                ⏹️ To&apos;xtatish
+                              </button>
+                            )}
                             <button
                               className="btn btn-sm btn-ghost text-danger"
-                              onClick={() => stopCampaign(c.id)}
+                              onClick={() => deleteCampaign(c.id)}
                             >
-                              ⏹️ To&apos;xtatish
+                              🗑️ O&apos;chirish
                             </button>
-                          )}
+                          </div>
                         </td>
                       </tr>
                     ))}

@@ -80,17 +80,19 @@ export default function Archive() {
       } else {
         const cutoffStart = `${year}-01-01T00:00:00`;
 
-        const [patientsResult, activeApptResult, activeTxnResult] = await Promise.all([
+        const [patientsResult, activeApptResult, activeRoomResult] = await Promise.all([
           supabase.from('patients').select('id, fullName, phone, createdAt').order('fullName'),
           supabase.from('appointments').select('patientId').gte('createdAt', cutoffStart),
-          supabase.from('transactions').select('patientId').gte('createdAt', cutoffStart),
+          supabase.from('room_patients').select('patientId').gte('entryDate', cutoffStart),
         ]);
 
         if (patientsResult.error) throw patientsResult.error;
+        if (activeApptResult.error) throw activeApptResult.error;
+        if (activeRoomResult.error) throw activeRoomResult.error;
 
         const activeIds = new Set<number>();
         (activeApptResult.data ?? []).forEach((r) => activeIds.add(r.patientId as number));
-        (activeTxnResult.data ?? []).forEach((r) => activeIds.add(r.patientId as number));
+        (activeRoomResult.data ?? []).forEach((r) => activeIds.add(r.patientId as number));
 
         const inactive: ArchiveRecord[] = (patientsResult.data ?? [])
           .filter((p) => !activeIds.has(p.id as number))
