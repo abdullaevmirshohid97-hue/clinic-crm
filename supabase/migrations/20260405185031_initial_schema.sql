@@ -1,9 +1,11 @@
 -- Supabase SaaS SQL Schema (Multi-tenant with RLS)
 
--- 1. Helper function to get current user's clinic_id from JWT metadata
+-- 1. Helper function to get current user's clinic_id from JWT app_metadata
+-- Reads from app_metadata (set by admin) not user_metadata (set by user)
+-- Consistent with get_my_clinic_id() in tenant_auth migration
 CREATE OR REPLACE FUNCTION get_clinic_id()
 RETURNS BIGINT AS $$
-  SELECT (auth.jwt() -> 'user_metadata' ->> 'clinic_id')::BIGINT;
+  SELECT (auth.jwt() -> 'app_metadata' ->> 'clinic_id')::BIGINT;
 $$ LANGUAGE sql STABLE;
 
 ---------------------------------------------------------

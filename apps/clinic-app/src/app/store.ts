@@ -130,6 +130,8 @@ export const authStore = {
         _state = {
           user: session.user,
           session: session,
+          // clinic_id is BIGINT in DB (number); stored as string so
+          // Supabase PostgREST .eq('clinic_id', ...) accepts both types transparently.
           clinicId: typedProfile.clinic_id != null ? String(typedProfile.clinic_id) : null,
           role: roleName,
           permissions: resolvedPerms,

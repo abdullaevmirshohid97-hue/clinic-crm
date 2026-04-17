@@ -90,3 +90,33 @@ INSERT INTO public.app_permissions (role_name, feature_name, "canAccess") VALUES
   ('cashier', 'analytics', 1),
   ('cashier', 'archive',   1)
 ON CONFLICT (role_name, feature_name) DO NOTHING;
+
+-- ─────────────────────────────────────────────────────────────────
+-- SEED: nurse — clinical support pages
+-- ─────────────────────────────────────────────────────────────────
+INSERT INTO public.app_permissions (role_name, feature_name, "canAccess") VALUES
+  ('nurse', 'dashboard',  1),
+  ('nurse', 'reception',  1),
+  ('nurse', 'queue',      1),
+  ('nurse', 'inpatient',  1),
+  ('nurse', 'laboratory', 1),
+  ('nurse', 'archive',    1)
+ON CONFLICT (role_name, feature_name) DO NOTHING;
+
+-- ─────────────────────────────────────────────────────────────────
+-- SEED: reception — front-desk pages
+-- ─────────────────────────────────────────────────────────────────
+INSERT INTO public.app_permissions (role_name, feature_name, "canAccess") VALUES
+  ('reception', 'dashboard',  1),
+  ('reception', 'reception',  1),
+  ('reception', 'queue',      1),
+  ('reception', 'archive',    1)
+ON CONFLICT (role_name, feature_name) DO NOTHING;
+
+-- ─────────────────────────────────────────────────────────────────
+-- SEED: warehouse_manager — inventory pages
+-- ─────────────────────────────────────────────────────────────────
+INSERT INTO public.app_permissions (role_name, feature_name, "canAccess") VALUES
+  ('warehouse_manager', 'dashboard', 1),
+  ('warehouse_manager', 'pharmacy',  1)
+ON CONFLICT (role_name, feature_name) DO NOTHING;

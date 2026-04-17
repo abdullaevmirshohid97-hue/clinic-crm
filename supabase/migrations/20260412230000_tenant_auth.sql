@@ -3,10 +3,11 @@
 -- clinics and patients tables are already created in 20260405185031_initial_schema.sql
 
 -- HELPER FUNCTIONS
--- get_my_clinic_id() returns BIGINT (matches clinics.id type)
+-- get_my_clinic_id() is an alias for get_clinic_id() (defined in initial_schema).
+-- Both read from app_metadata.clinic_id — single JWT claim source of truth.
 CREATE OR REPLACE FUNCTION get_my_clinic_id()
 RETURNS BIGINT AS $$
-  SELECT (auth.jwt() -> 'app_metadata' ->> 'clinic_id')::BIGINT;
+  SELECT get_clinic_id();
 $$ LANGUAGE sql STABLE;
 
 -- get_my_role() returns the role name from JWT app_metadata
