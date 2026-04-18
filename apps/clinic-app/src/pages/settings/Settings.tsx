@@ -30,6 +30,31 @@ const FEATURES = [
   { id: 'settings', label: 'Sozlamalar' },
 ];
 
+const PAYMENT_PROVIDERS = [
+  { id: 'click', label: 'Click', region: 'UZ' },
+  { id: 'payme', label: 'Payme', region: 'UZ' },
+  { id: 'kaspi', label: 'Kaspi.kz', region: 'KZ' },
+  { id: 'halyk', label: 'Halyk Bank', region: 'KZ' },
+  { id: 'mbank', label: 'MBank', region: 'KG' },
+  { id: 'omoney', label: "O!Money", region: 'KG' },
+  { id: 'elsom', label: 'Elsom', region: 'KG' },
+  { id: 'paypal', label: 'PayPal', region: 'Global' },
+  { id: 'alipay', label: 'Alipay', region: 'Global' },
+];
+
+async function hashPin(rawPin: string): Promise<string> {
+  const normalized = rawPin.trim();
+  if (!normalized) return '';
+  if (typeof window !== 'undefined' && window.crypto?.subtle) {
+    const bytes = new TextEncoder().encode(normalized);
+    const digest = await window.crypto.subtle.digest('SHA-256', bytes);
+    return Array.from(new Uint8Array(digest))
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('');
+  }
+  return btoa(normalized);
+}
+
 export default function Settings() {
   const { t } = useTranslation();
   const toast = useToast();
@@ -88,6 +113,14 @@ export default function Settings() {
   const [adminPin, setAdminPin] = useState('');
 
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+  const [paymentProviders, setPaymentProviders] = useState<
+    Record<string, { enabled: boolean; merchantId: string; secretKey: string; webhookSecret: string }>
+  >({});
+  const [paymentIntegrationPinHash, setPaymentIntegrationPinHash] = useState('');
+  const [paymentIntegrationPin, setPaymentIntegrationPin] = useState('');
+  const [paymentIntegrationPinConfirm, setPaymentIntegrationPinConfirm] = useState('');
+  const [paymentSectionUnlocked, setPaymentSectionUnlocked] = useState(false);
+  const [paymentSectionAccessPin, setPaymentSectionAccessPin] = useState('');
 
   async function loadAuditLogs() {
     try {
@@ -145,6 +178,24 @@ export default function Settings() {
       setSelectedPrinter(obj.printerName || '');
       setSidebarEditMode(obj.sidebarEditMode === '1');
       setQrPath(obj.printerQrPath || '');
+      setPaymentIntegrationPinHash(obj.paymentIntegrationPinHash || '');
+      setPaymentIntegrationPin('');
+      setPaymentIntegrationPinConfirm('');
+      setPaymentSectionUnlocked(false);
+      setPaymentSectionAccessPin('');
+      const providerState: Record<
+        string,
+        { enabled: boolean; merchantId: string; secretKey: string; webhookSecret: string }
+      > = {};
+      PAYMENT_PROVIDERS.forEach((provider) => {
+        providerState[provider.id] = {
+          enabled: obj[`payment_provider_${provider.id}_enabled`] === '1',
+          merchantId: obj[`payment_provider_${provider.id}_merchant_id`] || '',
+          secretKey: obj[`payment_provider_${provider.id}_secret_key`] || '',
+          webhookSecret: obj[`payment_provider_${provider.id}_webhook_secret`] || '',
+        };
+      });
+      setPaymentProviders(providerState);
 
       const savedPin = localStorage.getItem('clinic_admin_pin');
       setAdminPin(savedPin || '');
@@ -393,6 +444,61 @@ export default function Settings() {
 
   function formatPrice(n: number | string | null | undefined) {
     return Number(n ?? 0).toLocaleString('uz-UZ');
+  }
+
+  async function savePaymentProviders() {
+    try {
+      for (const provider of PAYMENT_PROVIDERS) {
+        const cfg = paymentProviders[provider.id] || {
+          enabled: false,
+          merchantId: '',
+          secretKey: '',
+          webhookSecret: '',
+        };
+        await db.setSetting(`payment_provider_${provider.id}_enabled`, cfg.enabled ? '1' : '0');
+        await db.setSetting(`payment_provider_${provider.id}_merchant_id`, cfg.merchantId || '');
+        await db.setSetting(`payment_provider_${provider.id}_secret_key`, cfg.secretKey || '');
+        await db.setSetting(
+          `payment_provider_${provider.id}_webhook_secret`,
+          cfg.webhookSecret || ''
+        );
+      }
+      toast.success("To'lov integratsiyalari saqlandi");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : String(err));
+    }
+  }
+
+  async function savePaymentIntegrationPin() {
+    if (paymentIntegrationPin !== paymentIntegrationPinConfirm) {
+      toast.error('PIN tasdiqlash maydoni mos emas');
+      return;
+    }
+    try {
+      const hashed = await hashPin(paymentIntegrationPin);
+      await db.setSetting('paymentIntegrationPinHash', hashed);
+      setPaymentIntegrationPinHash(hashed);
+      setPaymentSectionUnlocked(hashed.length === 0);
+      setPaymentIntegrationPin('');
+      setPaymentIntegrationPinConfirm('');
+      toast.success("To'lov integratsiya PIN saqlandi");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : String(err));
+    }
+  }
+
+  async function unlockPaymentSection() {
+    if (!paymentIntegrationPinHash.trim()) {
+      setPaymentSectionUnlocked(true);
+      return;
+    }
+    const accessHash = await hashPin(paymentSectionAccessPin);
+    if (accessHash !== paymentIntegrationPinHash.trim()) {
+      toast.error("Noto'g'ri PIN kod");
+      return;
+    }
+    setPaymentSectionUnlocked(true);
+    setPaymentSectionAccessPin('');
   }
 
   return (
@@ -991,6 +1097,136 @@ export default function Settings() {
                   </div>
                 </div>
               )}
+
+              {showSection(['click', 'payme', 'kaspi', 'halyk', 'mbank', 'omoney', 'elsom', 'paypal', 'alipay', 'payment', 'integratsiya']) && (
+                <div className="card glass-card mb-4" style={{ borderLeft: '4px solid var(--accent-primary)' }}>
+                  <div className="card-header">
+                    <h3>💳 To'lov tizimlari integratsiyasi (clinic-level)</h3>
+                  </div>
+                  <div className="card-body">
+                    {!paymentSectionUnlocked ? (
+                      <div
+                        style={{
+                          border: '1px dashed var(--border-color)',
+                          borderRadius: 10,
+                          padding: 14,
+                          background: 'var(--bg-input)',
+                          maxWidth: 420,
+                        }}
+                      >
+                        <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 10 }}>
+                          Bo'lim PIN bilan himoyalangan. Admin tomonidan o'rnatilgan kodni kiriting.
+                        </p>
+                        <input
+                          type="password"
+                          className="form-input"
+                          placeholder="PIN kod"
+                          value={paymentSectionAccessPin}
+                          onChange={(e) => setPaymentSectionAccessPin(e.target.value)}
+                        />
+                        <button className="btn btn-primary mt-3" onClick={unlockPaymentSection}>
+                          Ochish
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>
+                          Har bir klinika uchun alohida provider keylari saqlanadi. Yoqilmagan providerlar qabulxonada ko'rsatilmaydi.
+                        </p>
+                        <div style={{ display: 'grid', gap: 12 }}>
+                          {PAYMENT_PROVIDERS.map((provider) => {
+                            const cfg = paymentProviders[provider.id] || {
+                              enabled: false,
+                              merchantId: '',
+                              secretKey: '',
+                              webhookSecret: '',
+                            };
+                            return (
+                              <div
+                                key={provider.id}
+                                style={{
+                                  border: '1px solid var(--border-color)',
+                                  borderRadius: 10,
+                                  padding: 12,
+                                  background: 'var(--bg-input)',
+                                }}
+                              >
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                                  <strong>{provider.label}</strong>
+                                  <label style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                                    <input
+                                      type="checkbox"
+                                      checked={cfg.enabled}
+                                      onChange={(e) =>
+                                        setPaymentProviders((prev) => ({
+                                          ...prev,
+                                          [provider.id]: { ...cfg, enabled: e.target.checked },
+                                        }))
+                                      }
+                                    />
+                                    Faol
+                                  </label>
+                                </div>
+                                <div style={{ fontSize: 11, opacity: 0.7, marginBottom: 8 }}>
+                                  Region: {provider.region}
+                                </div>
+                                {cfg.enabled && (
+                                  <div className="form-grid">
+                                    <div className="form-group">
+                                      <label>Merchant ID / Account</label>
+                                      <input
+                                        className="form-input"
+                                        value={cfg.merchantId}
+                                        onChange={(e) =>
+                                          setPaymentProviders((prev) => ({
+                                            ...prev,
+                                            [provider.id]: { ...cfg, merchantId: e.target.value },
+                                          }))
+                                        }
+                                      />
+                                    </div>
+                                    <div className="form-group">
+                                      <label>Secret Key</label>
+                                      <input
+                                        className="form-input"
+                                        type="password"
+                                        value={cfg.secretKey}
+                                        onChange={(e) =>
+                                          setPaymentProviders((prev) => ({
+                                            ...prev,
+                                            [provider.id]: { ...cfg, secretKey: e.target.value },
+                                          }))
+                                        }
+                                      />
+                                    </div>
+                                    <div className="form-group full-width">
+                                      <label>Webhook Secret</label>
+                                      <input
+                                        className="form-input"
+                                        type="password"
+                                        value={cfg.webhookSecret}
+                                        onChange={(e) =>
+                                          setPaymentProviders((prev) => ({
+                                            ...prev,
+                                            [provider.id]: { ...cfg, webhookSecret: e.target.value },
+                                          }))
+                                        }
+                                      />
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                        <button className="btn btn-primary mt-4" onClick={savePaymentProviders}>
+                          Integratsiyalarni saqlash
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -1042,6 +1278,32 @@ export default function Settings() {
                           O'chirish
                         </button>
                       </div>
+                    </div>
+                    <div
+                      className="form-group full-width"
+                      style={{ maxWidth: 420, marginTop: 18, paddingTop: 12, borderTop: '1px solid var(--border-color)' }}
+                    >
+                      <label>To'lov integratsiyasi PIN kodi (bo'limni himoyalash)</label>
+                      <input
+                        type="password"
+                        className="form-input"
+                        value={paymentIntegrationPin}
+                        placeholder="Yangi PIN"
+                        onChange={(e) => setPaymentIntegrationPin(e.target.value)}
+                      />
+                      <input
+                        type="password"
+                        className="form-input mt-2"
+                        value={paymentIntegrationPinConfirm}
+                        placeholder="PIN qayta kiriting"
+                        onChange={(e) => setPaymentIntegrationPinConfirm(e.target.value)}
+                      />
+                      <button className="btn btn-primary mt-2" onClick={savePaymentIntegrationPin}>
+                        To'lov PIN ni saqlash
+                      </button>
+                      <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>
+                        Bo'sh qoldirsangiz to'lov integratsiya bo'limi ochiq bo'ladi.
+                      </p>
                     </div>
                   </div>
                 </div>
