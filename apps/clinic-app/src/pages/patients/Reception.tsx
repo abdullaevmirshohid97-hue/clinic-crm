@@ -607,7 +607,7 @@ const Reception = forwardRef<ReceptionHandle, Record<string, never>>(
 
         if (selectedDoctor) {
           const today = new Date().toISOString().split('T')[0];
-          const qs = await db.getAllRows('queue');
+          const qs = await db.getAllRows('queues');
           const todayQs = qs.filter(
             (x) => x.doctorId === selectedDoctor.id && x.createdAt && x.createdAt.startsWith(today)
           );
@@ -615,7 +615,7 @@ const Reception = forwardRef<ReceptionHandle, Record<string, never>>(
             todayQs.length > 0 ? Math.max(...todayQs.map((x) => x.number || 0)) + 1 : 1;
           const prefix = selectedDoctor.prefix || 'A';
 
-          await db.insert('queue', {
+          await db.insert('queues', {
             appointmentId: firstApptId,
             doctorId: selectedDoctor.id,
             patientId: patientId || null,
@@ -717,7 +717,7 @@ const Reception = forwardRef<ReceptionHandle, Record<string, never>>(
 
         if (selectedDoctor) {
           const today = new Date().toISOString().split('T')[0];
-          const qs = await db.getAllRows('queue');
+          const qs = await db.getAllRows('queues');
           const todayQs = qs.filter(
             (x) => x.doctorId === selectedDoctor.id && x.createdAt && x.createdAt.startsWith(today)
           );
@@ -725,7 +725,7 @@ const Reception = forwardRef<ReceptionHandle, Record<string, never>>(
             todayQs.length > 0 ? Math.max(...todayQs.map((x) => x.number || 0)) + 1 : 1;
           const prefix = selectedDoctor.prefix || 'A';
 
-          await db.insert('queue', {
+          await db.insert('queues', {
             appointmentId: firstApptId,
             doctorId: selectedDoctor.id,
             patientId: patientId || null,

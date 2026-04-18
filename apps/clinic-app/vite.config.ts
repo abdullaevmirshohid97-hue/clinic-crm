@@ -24,7 +24,8 @@ export default defineConfig({
       }
     }
   ],
-  base: './',
+  // Subdomain deployment expects absolute asset paths from root.
+  base: '/',
   root: '.',
   envPrefix: 'VITE_',
   build: {

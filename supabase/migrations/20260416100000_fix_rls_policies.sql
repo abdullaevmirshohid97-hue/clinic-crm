@@ -303,6 +303,11 @@ CREATE POLICY "inventory_update" ON inventory FOR UPDATE
 CREATE POLICY "inventory_delete" ON inventory FOR DELETE 
   USING (clinic_id::text = get_my_clinic_id());
 
+-- PAYMENT_PROVIDER_ACCOUNTS (id = UUID, clinic_id = UUID)
+CREATE POLICY "payment_provider_accounts clinic read/write" ON payment_provider_accounts FOR ALL
+  USING (clinic_id::text = get_my_clinic_id())
+  WITH CHECK (clinic_id::text = get_my_clinic_id());
+
 -- ============================================
 -- GLOBAL TABLES (no clinic_id - accessible by all)
 -- ============================================
@@ -325,4 +330,4 @@ GRANT SELECT ON ALL TABLES IN SCHEMA public TO anon;
 -- ============================================
 -- SUCCESS MESSAGE
 -- ============================================
-SELECT 'RLS Policies created successfully for all 24 tables!' AS result;
+SELECT 'RLS Policies created successfully for all 25 tables!' AS result;

@@ -16,3 +16,8 @@ npm run dev:clinic   # Klinika ilovasini ishga tushirish / Start clinic app (por
 npm run migrate      # Migrationlarni ishlatish / Run database migrations
 npm run build        # Qurish / Build for production
 ```
+
+## Production go-live (subdomain)
+
+Subdomain orqali productionga chiqarish uchun:
+- **[deploy/SUBDOMAIN_GO_LIVE_CHECKLIST.md](./deploy/SUBDOMAIN_GO_LIVE_CHECKLIST.md)**

@@ -24,5 +24,5 @@ CREATE POLICY "payment_provider_accounts clinic read/write"
   ON public.payment_provider_accounts
   FOR ALL
   TO authenticated
-  USING (clinic_id = get_my_clinic_id())
-  WITH CHECK (clinic_id = get_my_clinic_id());
+  USING (clinic_id::text = get_my_clinic_id())
+  WITH CHECK (clinic_id::text = get_my_clinic_id());

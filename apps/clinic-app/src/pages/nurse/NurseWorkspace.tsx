@@ -17,11 +17,13 @@ type NurseTask = {
     patient_id?: string | null;
     patients?: { full_name?: string | null } | null;
   } | null;
+  users?: { full_name?: string | null } | null;
 };
 
 export default function NurseWorkspace() {
   const [tasks, setTasks] = useState<NurseTask[]>([]);
   const [loading, setLoading] = useState(true);
+  const [nurseName, setNurseName] = useState('');
 
   const state = authStore.getState();
   const clinicId = state.clinicId;
@@ -33,7 +35,7 @@ export default function NurseWorkspace() {
     const { data, error } = await supabase
       .from('treatment_plan_items')
       .select(
-        'id, title, dosage, frequency_per_day, scheduled_time, method, status, consultation_id, doctor_consultations(patient_id, patients(full_name))'
+        'id, title, dosage, frequency_per_day, scheduled_time, method, status, consultation_id, assigned_nurse_id, doctor_consultations(patient_id, patients(full_name)), users!treatment_plan_items_assigned_nurse_id_fkey(full_name)'
       )
       .eq('clinic_id', clinicId)
       .in('status', ['planned', 'in_progress'])
@@ -51,6 +53,15 @@ export default function NurseWorkspace() {
   useEffect(() => {
     loadTasks();
   }, []);
+
+  useEffect(() => {
+    const loadNurseProfile = async () => {
+      if (!nurseId) return;
+      const { data } = await supabase.from('users').select('full_name').eq('id', nurseId).single();
+      setNurseName((data as any)?.full_name || state.user?.email || 'Hamshira');
+    };
+    loadNurseProfile();
+  }, [nurseId]);
 
   const updateTaskStatus = async (task: NurseTask, nextStatus: NurseTask['status']) => {
     if (!clinicId) return;
@@ -88,7 +99,12 @@ export default function NurseWorkspace() {
         from: task.status,
         to: nextStatus,
         title: task.title,
+        dosage: task.dosage || null,
+        scheduledTime: task.scheduled_time || null,
+        method: task.method || null,
+        nurseName: nurseName || state.user?.email || 'Hamshira',
       },
+      actorName: nurseName || state.user?.email || 'Hamshira',
     });
 
     toast.success(`Vazifa holati: ${nextStatus}`);
@@ -134,6 +150,9 @@ export default function NurseWorkspace() {
                 </p>
                 <p>
                   <b>Uslub:</b> {task.method || '-'}
+                </p>
+                <p>
+                  <b>Mas'ul hamshira:</b> {task.users?.full_name || '-'}
                 </p>
 
                 <div className="nurse-task-actions">

@@ -13,6 +13,16 @@ interface ActivityRow {
   actor_name: string | null;
   actor_role: string | null;
   patient_name: string | null;
+  details?: {
+    title?: string;
+    from?: string;
+    to?: string;
+    dosage?: string;
+    scheduledTime?: string;
+    method?: string;
+    nurseName?: string;
+    procedures?: string[];
+  } | null;
   created_at: string;
 }
 
@@ -96,10 +106,10 @@ export default function JournalPage({ onNavigate }: { onNavigate?: (page: string
     const loadActivity = async () => {
       const { data } = await supabase
         .from('activity_journal')
-        .select('id, action_type, actor_name, actor_role, patient_name, created_at')
+        .select('id, action_type, actor_name, actor_role, patient_name, details, created_at')
         .eq('clinic_id', clinicId)
         .order('created_at', { ascending: false })
-        .limit(10);
+        .limit(50);
       setActivities((data as ActivityRow[]) ?? []);
     };
 
@@ -497,8 +507,15 @@ export default function JournalPage({ onNavigate }: { onNavigate?: (page: string
                 <div key={activity.id} className="journal-live-item">
                   <strong>{activity.action_type}</strong>
                   <span>{activity.patient_name || 'Noma`lum bemor'}</span>
-                  <span>{activity.actor_role || 'unknown'}</span>
+                  <span>{activity.details?.nurseName || activity.actor_name || activity.actor_role || 'unknown'}</span>
                   <span>{new Date(activity.created_at).toLocaleTimeString('uz-UZ')}</span>
+                  <span>
+                    {activity.details?.title || ''}
+                    {activity.details?.procedures?.length
+                      ? ` (${activity.details.procedures.join(', ')})`
+                      : ''}
+                    {activity.details?.to ? ` [${activity.details.from} → ${activity.details.to}]` : ''}
+                  </span>
                 </div>
               ))}
             </div>

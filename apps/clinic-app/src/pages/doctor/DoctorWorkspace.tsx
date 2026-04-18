@@ -108,23 +108,21 @@ export default function DoctorWorkspace() {
 
       if (consultationError || !consultation) throw consultationError;
 
-      if (inpatientRequired) {
-        const cleanItems = planItems.filter((item) => item.title.trim());
-        if (cleanItems.length > 0) {
-          const payload = cleanItems.map((item) => ({
-            clinic_id: clinicId,
-            consultation_id: consultation.id,
-            title: item.title,
-            dosage: item.dosage || null,
-            frequency_per_day: Math.max(Number(item.frequencyPerDay) || 1, 1),
-            scheduled_time: item.scheduledTime || null,
-            method: item.method || null,
-            checkup_notes: item.checkupNotes || null,
-            status: 'planned',
-          }));
-          const { error: planError } = await supabase.from('treatment_plan_items').insert(payload);
-          if (planError) throw planError;
-        }
+      const cleanItems = planItems.filter((item) => item.title.trim());
+      if (cleanItems.length > 0) {
+        const payload = cleanItems.map((item) => ({
+          clinic_id: clinicId,
+          consultation_id: consultation.id,
+          title: item.title,
+          dosage: item.dosage || null,
+          frequency_per_day: Math.max(Number(item.frequencyPerDay) || 1, 1),
+          scheduled_time: item.scheduledTime || null,
+          method: item.method || null,
+          checkup_notes: item.checkupNotes || null,
+          status: 'planned',
+        }));
+        const { error: planError } = await supabase.from('treatment_plan_items').insert(payload);
+        if (planError) throw planError;
       }
 
       const { error: queueError } = await supabase
@@ -141,7 +139,8 @@ export default function DoctorWorkspace() {
         patientName: selectedQueue.patients?.full_name ?? null,
         details: {
           inpatientRequired,
-          treatmentItems: planItems.filter((item) => item.title.trim()).length,
+          treatmentItems: cleanItems.length,
+          procedures: cleanItems.map((item) => item.title),
         },
       });
 

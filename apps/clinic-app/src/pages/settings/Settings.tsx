@@ -632,6 +632,36 @@ export default function Settings() {
           </button>
 
           <button
+            className={`nav-item ${activeTab === 'finance' ? 'active' : ''}`}
+            style={{
+              border: 'none',
+              background: activeTab === 'finance' ? 'var(--bg-input)' : 'transparent',
+              textAlign: 'left',
+              padding: '14px 16px',
+              borderRadius: 12,
+              cursor: 'pointer',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 4,
+              transition: '0.2s',
+            }}
+            onClick={() => setActiveTab('finance')}
+          >
+            <div
+              style={{
+                fontWeight: 700,
+                fontSize: 15,
+                color: activeTab === 'finance' ? 'var(--text-primary)' : 'var(--text-secondary)',
+              }}
+            >
+              💳 To'lov tizimlari
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+              Click, Payme va boshqa payment integratsiyalar
+            </div>
+          </button>
+
+          <button
             className={`nav-item ${activeTab === 'system' ? 'active' : ''}`}
             style={{
               border: 'none',

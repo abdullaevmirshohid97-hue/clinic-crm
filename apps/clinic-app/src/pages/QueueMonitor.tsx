@@ -27,7 +27,7 @@ export default function QueueMonitor() {
     try {
       const today = new Date().toISOString().split('T')[0];
       const { data: queueData, error } = await supabase
-        .from('queue')
+        .from('queues')
         .select('*, doctors(fullName, prefix)')
         .gte('createdAt', `${today}T00:00:00`)
         .lte('createdAt', `${today}T23:59:59.999`)
