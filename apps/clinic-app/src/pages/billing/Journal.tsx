@@ -4,6 +4,17 @@ import { useToast } from '../../components/ui/Toast';
 import Modal from '../../components/ui/Modal';
 import { db } from '../../utils/db';
 import type { JournalEntry } from '../../types/clinic';
+import { supabase } from '../../lib/supabase';
+import { authStore } from '../../app/store';
+
+interface ActivityRow {
+  id: string;
+  action_type: string;
+  actor_name: string | null;
+  actor_role: string | null;
+  patient_name: string | null;
+  created_at: string;
+}
 
 export default function JournalPage({ onNavigate }: { onNavigate?: (page: string) => void }) {
   const { t } = useTranslation();
@@ -39,6 +50,7 @@ export default function JournalPage({ onNavigate }: { onNavigate?: (page: string
 
   const [expandedPatients, setExpandedPatients] = useState<Record<string, boolean>>({});
   const [showFilters, setShowFilters] = useState(false);
+  const [activities, setActivities] = useState<ActivityRow[]>([]);
 
   function toggleExpand(groupKey: string) {
     setExpandedPatients((prev) => ({ ...prev, [groupKey]: !prev[groupKey] }));
@@ -76,6 +88,35 @@ export default function JournalPage({ onNavigate }: { onNavigate?: (page: string
     }, 15000);
     return () => clearInterval(interval);
   }, [loadEntries, loadStats]);
+
+  useEffect(() => {
+    const clinicId = authStore.clinicId;
+    if (!clinicId) return;
+
+    const loadActivity = async () => {
+      const { data } = await supabase
+        .from('activity_journal')
+        .select('id, action_type, actor_name, actor_role, patient_name, created_at')
+        .eq('clinic_id', clinicId)
+        .order('created_at', { ascending: false })
+        .limit(10);
+      setActivities((data as ActivityRow[]) ?? []);
+    };
+
+    loadActivity();
+    const channel = supabase
+      .channel(`activity-journal-${clinicId}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'activity_journal', filter: `clinic_id=eq.${clinicId}` },
+        () => loadActivity()
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
 
   const formatPrice = (n: number | string | null | undefined) => {
     return Number(n || 0)
@@ -442,6 +483,26 @@ export default function JournalPage({ onNavigate }: { onNavigate?: (page: string
           >
             {t('journal.new_reception')}
           </button>
+        </div>
+      </div>
+
+      <div className="card glass-card no-print">
+        <div className="card-header">Live klinik amallari</div>
+        <div className="card-body">
+          {activities.length === 0 ? (
+            <p>Hozircha live amallar yo'q</p>
+          ) : (
+            <div className="journal-live-list">
+              {activities.map((activity) => (
+                <div key={activity.id} className="journal-live-item">
+                  <strong>{activity.action_type}</strong>
+                  <span>{activity.patient_name || 'Noma`lum bemor'}</span>
+                  <span>{activity.actor_role || 'unknown'}</span>
+                  <span>{new Date(activity.created_at).toLocaleTimeString('uz-UZ')}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 

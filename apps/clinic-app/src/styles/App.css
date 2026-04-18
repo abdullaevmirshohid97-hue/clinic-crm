@@ -3327,3 +3327,119 @@ body {
 }
 
 /* --- Dashboard Mini Tables End --- */
+
+/* --- Doctor + Nurse Workspace --- */
+.doctor-layout {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  gap: 16px;
+}
+
+.doctor-queue-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 70vh;
+  overflow: auto;
+}
+
+.doctor-queue-item {
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  background: var(--bg-input);
+  color: var(--text-primary);
+  padding: 10px;
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  cursor: pointer;
+}
+
+.doctor-queue-item.active {
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 1px var(--accent-primary-glow);
+}
+
+.doctor-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.doctor-plan-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.doctor-plan-item {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.nurse-task-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 12px;
+}
+
+.nurse-task-card .card-body p {
+  margin-bottom: 6px;
+}
+
+.nurse-task-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.journal-live-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.journal-live-item {
+  display: grid;
+  grid-template-columns: 2fr 2fr 1fr 1fr;
+  gap: 8px;
+  font-size: 12px;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 6px;
+}
+
+@media (max-width: 1024px) {
+  .doctor-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .doctor-plan-item {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .nurse-task-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .doctor-plan-item {
+    grid-template-columns: 1fr;
+  }
+
+  .nurse-task-actions .btn {
+    flex: 1;
+  }
+
+  .journal-live-item {
+    grid-template-columns: 1fr;
+    font-size: 11px;
+  }
+}
