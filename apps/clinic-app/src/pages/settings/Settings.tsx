@@ -4,6 +4,7 @@ import { useToast } from '../../components/ui/Toast';
 import Modal from '../../components/ui/Modal';
 import { db } from '../../utils/db';
 import { printReceipt } from '../../utils/printer';
+import { api } from '../../services/api';
 import type {
   ClinicDoctor,
   ClinicService,
@@ -41,19 +42,6 @@ const PAYMENT_PROVIDERS = [
   { id: 'paypal', label: 'PayPal', region: 'Global' },
   { id: 'alipay', label: 'Alipay', region: 'Global' },
 ];
-
-async function hashPin(rawPin: string): Promise<string> {
-  const normalized = rawPin.trim();
-  if (!normalized) return '';
-  if (typeof window !== 'undefined' && window.crypto?.subtle) {
-    const bytes = new TextEncoder().encode(normalized);
-    const digest = await window.crypto.subtle.digest('SHA-256', bytes);
-    return Array.from(new Uint8Array(digest))
-      .map((b) => b.toString(16).padStart(2, '0'))
-      .join('');
-  }
-  return btoa(normalized);
-}
 
 export default function Settings() {
   const { t } = useTranslation();
@@ -116,7 +104,6 @@ export default function Settings() {
   const [paymentProviders, setPaymentProviders] = useState<
     Record<string, { enabled: boolean; merchantId: string; secretKey: string; webhookSecret: string }>
   >({});
-  const [paymentIntegrationPinHash, setPaymentIntegrationPinHash] = useState('');
   const [paymentIntegrationPin, setPaymentIntegrationPin] = useState('');
   const [paymentIntegrationPinConfirm, setPaymentIntegrationPinConfirm] = useState('');
   const [paymentSectionUnlocked, setPaymentSectionUnlocked] = useState(false);
@@ -178,24 +165,10 @@ export default function Settings() {
       setSelectedPrinter(obj.printerName || '');
       setSidebarEditMode(obj.sidebarEditMode === '1');
       setQrPath(obj.printerQrPath || '');
-      setPaymentIntegrationPinHash(obj.paymentIntegrationPinHash || '');
       setPaymentIntegrationPin('');
       setPaymentIntegrationPinConfirm('');
       setPaymentSectionUnlocked(false);
       setPaymentSectionAccessPin('');
-      const providerState: Record<
-        string,
-        { enabled: boolean; merchantId: string; secretKey: string; webhookSecret: string }
-      > = {};
-      PAYMENT_PROVIDERS.forEach((provider) => {
-        providerState[provider.id] = {
-          enabled: obj[`payment_provider_${provider.id}_enabled`] === '1',
-          merchantId: obj[`payment_provider_${provider.id}_merchant_id`] || '',
-          secretKey: obj[`payment_provider_${provider.id}_secret_key`] || '',
-          webhookSecret: obj[`payment_provider_${provider.id}_webhook_secret`] || '',
-        };
-      });
-      setPaymentProviders(providerState);
 
       const savedPin = localStorage.getItem('clinic_admin_pin');
       setAdminPin(savedPin || '');
@@ -448,22 +421,19 @@ export default function Settings() {
 
   async function savePaymentProviders() {
     try {
-      for (const provider of PAYMENT_PROVIDERS) {
-        const cfg = paymentProviders[provider.id] || {
-          enabled: false,
-          merchantId: '',
-          secretKey: '',
-          webhookSecret: '',
-        };
-        await db.setSetting(`payment_provider_${provider.id}_enabled`, cfg.enabled ? '1' : '0');
-        await db.setSetting(`payment_provider_${provider.id}_merchant_id`, cfg.merchantId || '');
-        await db.setSetting(`payment_provider_${provider.id}_secret_key`, cfg.secretKey || '');
-        await db.setSetting(
-          `payment_provider_${provider.id}_webhook_secret`,
-          cfg.webhookSecret || ''
-        );
-      }
+      const providers = PAYMENT_PROVIDERS.map((provider) => ({
+        provider: provider.id,
+        enabled: Boolean(paymentProviders[provider.id]?.enabled),
+        merchantId: paymentProviders[provider.id]?.merchantId || '',
+        secretKey: paymentProviders[provider.id]?.secretKey || '',
+        webhookSecret: paymentProviders[provider.id]?.webhookSecret || '',
+      }));
+      await api.put('/payments/providers', {
+        pin: paymentSectionAccessPin,
+        providers,
+      });
       toast.success("To'lov integratsiyalari saqlandi");
+      await loadPaymentProviders();
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : String(err));
     }
@@ -475,10 +445,8 @@ export default function Settings() {
       return;
     }
     try {
-      const hashed = await hashPin(paymentIntegrationPin);
-      await db.setSetting('paymentIntegrationPinHash', hashed);
-      setPaymentIntegrationPinHash(hashed);
-      setPaymentSectionUnlocked(hashed.length === 0);
+      await api.post('/payments/providers/pin', { pin: paymentIntegrationPin.trim() });
+      setPaymentSectionUnlocked(paymentIntegrationPin.trim().length === 0);
       setPaymentIntegrationPin('');
       setPaymentIntegrationPinConfirm('');
       toast.success("To'lov integratsiya PIN saqlandi");
@@ -488,17 +456,36 @@ export default function Settings() {
   }
 
   async function unlockPaymentSection() {
-    if (!paymentIntegrationPinHash.trim()) {
+    try {
+      await api.post('/payments/providers/unlock', { pin: paymentSectionAccessPin });
       setPaymentSectionUnlocked(true);
-      return;
+      await loadPaymentProviders();
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : String(err));
     }
-    const accessHash = await hashPin(paymentSectionAccessPin);
-    if (accessHash !== paymentIntegrationPinHash.trim()) {
-      toast.error("Noto'g'ri PIN kod");
-      return;
+  }
+
+  async function loadPaymentProviders() {
+    try {
+      const res = await api.get('/payments/providers');
+      const rows = Array.isArray(res?.data) ? res.data : [];
+      const next: Record<
+        string,
+        { enabled: boolean; merchantId: string; secretKey: string; webhookSecret: string }
+      > = {};
+      PAYMENT_PROVIDERS.forEach((provider) => {
+        const row = rows.find((x: any) => x.provider === provider.id);
+        next[provider.id] = {
+          enabled: Boolean(row?.enabled),
+          merchantId: row?.merchantId || '',
+          secretKey: '',
+          webhookSecret: '',
+        };
+      });
+      setPaymentProviders(next);
+    } catch {
+      // keep local defaults until unlocked/available
     }
-    setPaymentSectionUnlocked(true);
-    setPaymentSectionAccessPin('');
   }
 
   return (

@@ -11,6 +11,7 @@ import pharmacyRoutes from '../modules/pharmacy/pharmacy.routes';
 import adminAnalyticsRoute from './adminAnalytics';
 import clinicAnalyticsRoute from './clinicAnalytics';
 import adminBillingRoute from './adminBilling';
+import paymentRoutes from '../modules/payments/payment.routes';
 
 const router = Router();
 
@@ -26,5 +27,6 @@ router.use('/pharmacy', pharmacyRoutes);
 router.use('/admin/analytics', adminAnalyticsRoute);
 router.use('/clinic/analytics', clinicAnalyticsRoute);
 router.use('/admin/billing', adminBillingRoute);
+router.use('/payments', paymentRoutes);
 
 export default router;

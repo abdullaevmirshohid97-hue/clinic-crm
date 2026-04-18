@@ -11,6 +11,7 @@ import { useToast } from '../../components/ui/Toast';
 import Modal from '../../components/ui/Modal';
 import { db } from '../../utils/db';
 import { printReceipt } from '../../utils/printer';
+import { api } from '../../services/api';
 import type {
   ReceptionHandle,
   ClinicService,
@@ -234,22 +235,10 @@ const Reception = forwardRef<ReceptionHandle, Record<string, never>>(
 
     async function loadEnabledProviders() {
       try {
-        const settingsRows = await db.getAllRows<{ key: string; value: string }>('settings');
-        const providers = [
-          'click',
-          'payme',
-          'kaspi',
-          'halyk',
-          'mbank',
-          'omoney',
-          'elsom',
-          'paypal',
-          'alipay',
-        ].filter((provider) =>
-          settingsRows.some(
-            (row) => row.key === `payment_provider_${provider}_enabled` && row.value === '1'
-          )
-        );
+        const res = await api.get('/payments/providers');
+        const providers = (Array.isArray(res?.data) ? res.data : [])
+          .filter((row: any) => Boolean(row?.enabled))
+          .map((row: any) => String(row.provider));
         const normalized = providers.length > 0 ? providers : ['click', 'payme'];
         setEnabledTransferProviders(normalized);
         if (!normalized.includes(transferProvider)) setTransferProvider(normalized[0]);
