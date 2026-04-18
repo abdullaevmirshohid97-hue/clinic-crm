@@ -2,18 +2,8 @@ import { supabase } from './supabase';
 import { authStore } from '../app/store';
 
 /**
- * Generic row returned from Supabase — values are dynamic JSON so typed as `any`.
- * Callers that know the shape can use the typed generics: db.getAllRows<MyType>(table).
- */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type DbRow = Record<string, any>;
-
-type DbResult<T> = { success: true; data: T } | { success: false; error: string };
-type DbSimpleResult = { success: true } | { success: false; error: string };
-
-/**
- * DB abstraction layer for Clary SaaS.
- * All calls are strictly routed through Supabase with Clinic isolation.
+ * DB abstraction layer for Clinic CRM SaaS.
+ * All calls are routed through Supabase with Clinic isolation.
  */
 export const db = {
   getContext: () => {
@@ -25,134 +15,278 @@ export const db = {
     return clinicId;
   },
 
-  getAll: async <T extends DbRow = DbRow>(table: string): Promise<DbResult<T[]>> => {
+  getAll: async (table: string, options?: { orderBy?: string; ascending?: boolean }) => {
+    try {
+      const clinicId = db.getContext();
+      let query = supabase.from(table).select('*');
+      
+      if (clinicId) {
+        query = query.eq('clinic_id', clinicId);
+      }
+      
+      const orderField = options?.orderBy || 'created_at';
+      const { data, error } = await query.order(orderField, { ascending: options?.ascending ?? false });
+      
+      if (error) throw error;
+      return { success: true, data };
+    } catch (err: any) {
+      console.error(`DB GetAll Error (${table}):`, err);
+      return { success: false, error: err.message };
+    }
+  },
+
+  getOne: async (table: string, id: string) => {
+    try {
+      const clinicId = db.getContext();
+      let query = supabase.from(table).select('*').eq('id', id);
+      
+      if (clinicId) {
+        query = query.eq('clinic_id', clinicId);
+      }
+      
+      const { data, error } = await query.single();
+      if (error) throw error;
+      return { success: true, data };
+    } catch (err: any) {
+      console.error(`DB GetOne Error (${table}, ${id}):`, err);
+      return { success: false, error: err.message };
+    }
+  },
+
+  getWhere: async (table: string, conditions: Record<string, any>, options?: { orderBy?: string; ascending?: boolean; limit?: number }) => {
+    try {
+      const clinicId = db.getContext();
+      let query = supabase.from(table).select('*');
+      
+      if (clinicId) {
+        query = query.eq('clinic_id', clinicId);
+      }
+      
+      for (const [key, value] of Object.entries(conditions)) {
+        query = query.eq(key, value);
+      }
+      
+      if (options?.orderBy) {
+        query = query.order(options.orderBy, { ascending: options.ascending ?? false });
+      }
+      
+      if (options?.limit) {
+        query = query.limit(options.limit);
+      }
+      
+      const { data, error } = await query;
+      if (error) throw error;
+      return { success: true, data };
+    } catch (err: any) {
+      console.error(`DB GetWhere Error (${table}):`, err);
+      return { success: false, error: err.message };
+    }
+  },
+
+  insert: async (table: string, data: any) => {
+    try {
+      const clinicId = db.getContext();
+      const payload = Array.isArray(data) ? data : [data];
+      
+      const itemsToInsert = payload.map(item => ({
+        ...item,
+        clinic_id: item.clinic_id || clinicId,
+        created_at: new Date().toISOString()
+      }));
+
+      const { data: inserted, error } = await supabase
+        .from(table)
+        .insert(itemsToInsert)
+        .select();
+
+      if (error) throw error;
+      return { success: true, data: Array.isArray(data) ? inserted : inserted?.[0] };
+    } catch (err: any) {
+      console.error(`DB Insert Error (${table}):`, err);
+      return { success: false, error: err.message };
+    }
+  },
+
+  update: async (table: string, id: string, data: any) => {
     try {
       const clinicId = db.getContext();
 
-      let query = supabase.from(table).select('*');
-
+      let query = supabase.from(table).update(data).eq('id', id);
+      
       if (clinicId) {
         query = query.eq('clinic_id', clinicId);
       }
 
-      const { data, error } = await query.order('id', { ascending: false });
-
+      const { data: updated, error } = await query.select().single();
       if (error) throw error;
-      return { success: true, data: (data ?? []) as T[] };
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      console.error(`DB GetAll Error (${table}):`, err);
-      return { success: false, error: msg };
-    }
-  },
-
-  insert: async <T extends DbRow = DbRow>(
-    table: string,
-    data: DbRow | DbRow[]
-  ): Promise<DbResult<T | T[]>> => {
-    try {
-      const clinicId = db.getContext();
-      const payload = Array.isArray(data) ? data : [data];
-
-      const itemsToInsert = payload.map((item) => ({
-        ...item,
-        clinic_id: item['clinic_id'] ?? clinicId,
-        created_at: new Date().toISOString(),
-      }));
-
-      const { data: inserted, error } = await supabase.from(table).insert(itemsToInsert).select();
-
-      if (error) throw error;
-      const result = (inserted ?? []) as T[];
-      return { success: true, data: Array.isArray(data) ? result : result[0] };
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      console.error(`DB Insert Error (${table}):`, err);
-      return { success: false, error: msg };
-    }
-  },
-
-  update: async (table: string, id: number | string, data: DbRow): Promise<DbSimpleResult> => {
-    try {
-      const clinicId = db.getContext();
-
-      const { error } = await supabase
-        .from(table)
-        .update(data)
-        .eq('id', id)
-        .eq('clinic_id', clinicId);
-
-      if (error) throw error;
-      return { success: true };
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
+      return { success: true, data: updated };
+    } catch (err: any) {
       console.error(`DB Update Error (${table}, ${id}):`, err);
-      return { success: false, error: msg };
+      return { success: false, error: err.message };
     }
   },
 
-  delete: async (table: string, id: number | string): Promise<DbSimpleResult> => {
+  delete: async (table: string, id: string) => {
     try {
       const clinicId = db.getContext();
 
-      const { error } = await supabase.from(table).delete().eq('id', id).eq('clinic_id', clinicId);
+      let query = supabase.from(table).delete().eq('id', id);
+      
+      if (clinicId) {
+        query = query.eq('clinic_id', clinicId);
+      }
 
+      const { error } = await query;
       if (error) throw error;
       return { success: true };
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
+    } catch (err: any) {
       console.error(`DB Delete Error (${table}, ${id}):`, err);
-      return { success: false, error: msg };
+      return { success: false, error: err.message };
     }
   },
 
-  async query<T extends DbRow = DbRow>(sql: string, _params?: unknown[]): Promise<T[]> {
-    console.warn('Supabase does not support raw SQL from client. Ignored SQL:', sql);
-    return [] as T[];
-  },
-
-  async run<T extends DbRow = DbRow>(sql: string, _params?: unknown[]): Promise<T[]> {
-    return this.query<T>(sql);
-  },
-
-  async setSetting(key: string, value: string | number | boolean | null): Promise<DbSimpleResult> {
+  // Get active shift
+  async getActiveShift() {
     const clinicId = db.getContext();
+    if (!clinicId) return null;
+    
+    const { data, error } = await supabase
+      .from('shifts')
+      .select('*')
+      .eq('clinic_id', clinicId)
+      .eq('status', 'active')
+      .order('opened_at', { ascending: false })
+      .limit(1)
+      .single();
+    
+    if (error) return null;
+    return data;
+  },
+
+  // Get settings as key-value object
+  async getSettings() {
+    const clinicId = db.getContext();
+    if (!clinicId) return {};
+    
+    const { data, error } = await supabase
+      .from('settings')
+      .select('key, value')
+      .eq('clinic_id', clinicId);
+    
+    if (error) return {};
+    
+    const settings: Record<string, string> = {};
+    (data || []).forEach(row => {
+      settings[row.key] = row.value;
+    });
+    return settings;
+  },
+
+  async setSetting(key: string, value: string) {
+    const clinicId = db.getContext();
+    if (!clinicId) return { success: false, error: 'No clinic context' };
+    
     try {
       const { error } = await supabase
         .from('settings')
         .upsert({ clinic_id: clinicId, key, value }, { onConflict: 'clinic_id,key' });
+      
       if (error) throw error;
       return { success: true };
-    } catch (e: unknown) {
-      try {
-        const { data } = await supabase
-          .from('settings')
-          .select('id')
-          .eq('clinic_id', clinicId)
-          .eq('key', key)
-          .single();
-        if (data)
-          await supabase
-            .from('settings')
-            .update({ value })
-            .eq('id', (data as DbRow)['id']);
-        else await supabase.from('settings').insert({ clinic_id: clinicId, key, value });
-        return { success: true };
-      } catch (e2: unknown) {
-        const msg = e2 instanceof Error ? e2.message : String(e2);
-        return { success: false, error: msg };
-      }
+    } catch (e: any) {
+      return { success: false, error: e.message };
     }
   },
 
-  async insertReturn<T extends DbRow = DbRow>(table: string, data: DbRow): Promise<T> {
-    const res = await this.insert<T>(table, data);
-    if (!res.success) throw new Error(res.error || 'Insert failed');
-    return res.data as T;
+  async getSetting(key: string) {
+    const clinicId = db.getContext();
+    if (!clinicId) return null;
+    
+    const { data } = await supabase
+      .from('settings')
+      .select('value')
+      .eq('clinic_id', clinicId)
+      .eq('key', key)
+      .single();
+    
+    return data?.value || null;
   },
 
-  async getAllRows<T extends DbRow = DbRow>(table: string): Promise<T[]> {
-    const res = await this.getAll<T>(table);
+  // Get doctors (users with role='doctor')
+  async getDoctors() {
+    const clinicId = db.getContext();
+    if (!clinicId) return [];
+    
+    const { data, error } = await supabase
+      .from('users')
+      .select('id, full_name, prefix, specialty, is_active')
+      .eq('clinic_id', clinicId)
+      .eq('role', 'doctor')
+      .eq('is_active', true)
+      .order('full_name');
+    
+    if (error) return [];
+    
+    return (data || []).map(d => ({
+      id: d.id,
+      fullName: d.full_name,
+      prefix: d.prefix,
+      specialty: d.specialty,
+      isActive: d.is_active ? 1 : 0
+    }));
+  },
+
+  // Get patients
+  async getPatients(options?: { search?: string; limit?: number }) {
+    const clinicId = db.getContext();
+    if (!clinicId) return [];
+    
+    let query = supabase
+      .from('patients')
+      .select('id, full_name, phone, birth_date, gender')
+      .eq('clinic_id', clinicId)
+      .order('full_name');
+    
+    if (options?.search) {
+      query = query.ilike('full_name', `%${options.search}%`);
+    }
+    
+    if (options?.limit) {
+      query = query.limit(options.limit);
+    }
+    
+    const { data, error } = await query;
+    if (error) return [];
+    
+    return (data || []).map(p => ({
+      id: p.id,
+      fullName: p.full_name,
+      phone: p.phone,
+      birthDate: p.birth_date,
+      gender: p.gender
+    }));
+  },
+
+  // Deprecated: raw SQL not supported
+  async query(sql: string, _params?: any[]) {
+    console.warn("Raw SQL not supported. Use db.getAll, db.getWhere, etc. SQL:", sql);
+    return [];
+  },
+
+  async run(sql: string, _params?: any[]) {
+    console.warn("Raw SQL not supported. Use db.insert, db.update, etc. SQL:", sql);
+    return [];
+  },
+
+  // Helper methods for backward compatibility
+  async insertReturn(table: string, data: any) {
+    const res = await this.insert(table, data);
+    if (!res.success) throw new Error(res.error || 'Insert failed');
+    return res.data;
+  },
+
+  async getAllRows(table: string) {
+    const res = await this.getAll(table);
     if (!res.success) throw new Error(res.error || 'GetAll failed');
     return Array.isArray(res.data) ? res.data : [];
   },

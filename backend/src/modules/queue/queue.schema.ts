@@ -4,14 +4,20 @@ const uuidType = z.string().uuid('Invalid UUID format');
 
 export const addToQueueSchema = z.object({
   body: z.object({
-    patientId: uuidType,
+    patientId: uuidType.optional().nullable(),
     doctorId: uuidType,
-    doctorPrefix: z.string().min(1, 'Doctor prefix is required'),
+    patientName: z.string().optional(),
   }),
 });
 
 export const callNextSchema = z.object({
   body: z.object({
     doctorId: uuidType,
+  }),
+});
+
+export const updateStatusSchema = z.object({
+  body: z.object({
+    status: z.enum(['waiting', 'in_progress', 'completed', 'cancelled']),
   }),
 });

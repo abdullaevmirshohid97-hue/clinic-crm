@@ -1,39 +1,14 @@
 import { db } from './db';
-import type {
-  QueueReceiptData,
-  ServiceReceiptData,
-  PayoutReceiptData,
-  ReceiptData,
-} from '../types/clinic';
 
-interface ClinicSettings {
-  receiptWidth?: string;
-  clinicName?: string;
-  clinicAddress?: string;
-  clinicPhone?: string;
-  clinicSlogan?: string;
-  receiptHeader?: string;
-  receiptFooter?: string;
-  receiptNote?: string;
-  printerName?: string;
-  [key: string]: string | undefined;
-}
-
-export async function getClinicSettings(): Promise<ClinicSettings> {
+export async function getClinicSettings() {
   try {
-    const rows = await db.getAllRows<{ key: string; value: string }>('settings');
-    const settings: ClinicSettings = {};
-    rows.forEach((r) => {
-      if (r.key) settings[r.key] = r.value;
-    });
-    return settings;
-  } catch (e) {
-    console.error('getClinicSettings error:', e);
+    return await db.getSettings();
+  } catch {
     return {};
   }
 }
 
-export function generateReceiptHTML(data: ReceiptData, settings: ClinicSettings = {}) {
+export function generateReceiptHTML(data, settings = {}) {
   const width = settings.receiptWidth || '80';
   const widthPx = width === '58' ? 220 : width === '110' ? 420 : 300;
 
@@ -62,7 +37,7 @@ ${settings.receiptHeader ? `<div class="center small" style="margin-top: 5px;">$
 
 <div class="line"></div>
 
-${data.type === 'queue' ? generateQueueReceipt(data as QueueReceiptData) : data.type === 'payout' ? generatePayoutReceipt(data as PayoutReceiptData) : generateServiceReceipt(data as ServiceReceiptData)}
+${data.type === 'queue' ? generateQueueReceipt(data) : data.type === 'payout' ? generatePayoutReceipt(data) : generateServiceReceipt(data)}
 
 <div class="line"></div>
 ${settings.receiptFooter ? `<div class="center small" style="margin-bottom: 5px;">${settings.receiptFooter.replace(/\n/g, '<br/>')}</div><div class="line"></div>` : ''}
@@ -74,7 +49,7 @@ ${settings.receiptNote ? `<div class="center" style="font-size: 9px; color: #888
 </body></html>`;
 }
 
-function generateQueueReceipt(data: QueueReceiptData) {
+function generateQueueReceipt(data) {
   return `
 <div class="center">
   <div class="small">NAVBAT CHEKI</div>
@@ -85,15 +60,12 @@ function generateQueueReceipt(data: QueueReceiptData) {
 `;
 }
 
-function generateServiceReceipt(data: ServiceReceiptData) {
+function generateServiceReceipt(data) {
   let servicesHTML = '';
   if (data.services && data.services.length > 0) {
-    servicesHTML = data.services
-      .map(
-        (s) =>
-          `<div class="row"><span>${s.name}</span><span>${Number(s.price).toLocaleString()} so'm</span></div>`
-      )
-      .join('');
+    servicesHTML = data.services.map(s =>
+      `<div class="row"><span>${s.name}</span><span>${Number(s.price).toLocaleString()} so'm</span></div>`
+    ).join('');
   }
 
   return `
@@ -105,12 +77,12 @@ function generateServiceReceipt(data: ServiceReceiptData) {
   <div class="line"></div>
   ${data.discount ? `<div class="row"><span>Chegirma:</span><span>${data.discount}%</span></div>` : ''}
   <div class="row total"><span>JAMI:</span><span>${Number(data.total || 0).toLocaleString()} so'm</span></div>
-  <div class="row"><span>To'lov:</span><span>${data.paymentType === 'cash' ? 'Naqd' : data.paymentType === 'card' ? 'Karta' : data.paymentType === 'debt' ? 'Qarz' : "O'tkazma"}</span></div>
+  <div class="row"><span>To'lov:</span><span>${data.paymentType === 'cash' ? 'Naqd' : data.paymentType === 'card' ? 'Karta' : data.paymentType === 'debt' ? 'Qarz' : 'O\'tkazma'}</span></div>
 </div>
 `;
 }
 
-function generatePayoutReceipt(data: PayoutReceiptData) {
+function generatePayoutReceipt(data) {
   return `
 <div class="center">
   <div class="bold" style="font-size: 14px;">SHIFOKORGA TO'LOV (BERILDI)</div>
@@ -126,12 +98,12 @@ function generatePayoutReceipt(data: PayoutReceiptData) {
 `;
 }
 
-export async function printReceipt(data: ReceiptData) {
+export async function printReceipt(data) {
   const settings = await getClinicSettings();
   const html = generateReceiptHTML(data, settings);
 
   if (window.electronAPI?.print?.receipt) {
-    const opts: ElectronPrintOptions = {
+    const opts = {
       silent: true,
       width: settings.receiptWidth === '58' ? 220 : settings.receiptWidth === '110' ? 420 : 300,
     };

@@ -9,6 +9,25 @@ export const authMiddleware = async (
   res: Response,
   next: NextFunction
 ) => {
+  if (process.env.NODE_ENV === 'test') {
+    const testRole = req.headers['x-test-role'];
+
+    if (typeof testRole === 'string' && testRole.length > 0) {
+      const testPermissions = req.headers['x-test-permissions'];
+      const permissions = typeof testPermissions === 'string' && testPermissions.length > 0
+        ? testPermissions.split(',').map((p) => p.trim()).filter(Boolean)
+        : [];
+
+      req.user = {
+        id: (req.headers['x-test-user-id'] as string) || 'test-user-id',
+        clinic_id: (req.headers['x-test-clinic-id'] as string) || 'test-clinic-id',
+        role: testRole as Role,
+        permissions,
+      };
+      return next();
+    }
+  }
+
   const authHeader = req.headers.authorization;
 
   if (!authHeader?.startsWith('Bearer ')) {

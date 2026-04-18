@@ -2,11 +2,28 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { copyFileSync } from 'fs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [
+    react(),
+    {
+      name: 'copy-htaccess',
+      closeBundle() {
+        try {
+          copyFileSync(
+            path.resolve(__dirname, '.htaccess'),
+            path.resolve(__dirname, 'dist/.htaccess')
+          );
+          console.log('✅ .htaccess copied to dist/');
+        } catch (e) {
+          console.log('⚠️ .htaccess not found, skipping...');
+        }
+      }
+    }
+  ],
   base: './',
   root: '.',
   envPrefix: 'VITE_',
