@@ -9,16 +9,19 @@
   "scripts": {
     "dev:clinic": "npm run dev -w apps/clinic-app",
     "dev:admin": "npm run dev -w apps/admin-app",
-    "dev:backend": "npm run dev -w apps/backend",
-    "dev": "npm run dev -w apps/clinic-app",
+    "dev:backend": "npm --prefix ./backend run dev",
+    "dev": "concurrently \"npm:dev:backend\" \"npm:dev:admin\" \"npm:dev:clinic\"",
     "test": "npm run test -w apps/clinic-app",
     "build": "npm run build --workspaces --if-present",
     "install:all": "npm install",
-    "migrate": "bash scripts/migrate.sh",
-    "deploy:functions": "bash scripts/deploy-functions.sh"
+    "verify:clinic": "npm run test -w apps/clinic-app -- --run && npm run build -w apps/clinic-app",
+    "verify:admin": "npm run build -w apps/admin-app",
+    "verify:backend-core": "npm --prefix ./backend run build",
+    "verify:server": "npm --prefix ./server run typecheck",
+    "verify:all": "npm run verify:clinic && npm run verify:admin && npm run verify:backend-core && npm run verify:server"
   },
   "devDependencies": {
-    "concurrently": "^8.2.2",
-    "typescript": "^5.3.3"
+    "typescript": "^5.3.3",
+    "concurrently": "^8.2.2"
   }
 }
