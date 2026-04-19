@@ -1,18 +1,16 @@
-# CLARY — SaaS Platform for Healthcare
+# CRM Minimal QR Upload and Analytics Skeleton
 
-Raqamli klinika boshqaruvi / Digital Clinic Management
+This repository contains a minimal, self-contained backend+frontend skeleton to implement: 
+- QR JPEG upload on printer settings
+- Revenue analytics split by category: stationary vs service
 
-## Tez boshlash / Quick Start
+Note: This is a lightweight prototype to illustrate the feature; adapt to your real stack.
 
-To'liq o'rnatish qo'llanmasi uchun **[SETUP.md](./SETUP.md)** ga qarang.
+## Operations Runbooks
 
-For the full setup guide, see **[SETUP.md](./SETUP.md)**.
-
-## Asosiy buyruqlar / Key commands
-
-```bash
-npm install          # O'rnatish / Install dependencies
-npm run dev:clinic   # Klinika ilovasini ishga tushirish / Start clinic app (port 5000)
-npm run migrate      # Migrationlarni ishlatish / Run database migrations
-npm run build        # Qurish / Build for production
-```
+- `ops/BackupStrategy.md`
+- `ops/ReleaseRunbook.md`
+- `ops/IncidentResponseRunbook.md`
+- `ops/MonitoringAndSLO.md`
+- `ops/ArchitectureConsolidation.md`
+- `ops/GovernanceAndCompliance.md`

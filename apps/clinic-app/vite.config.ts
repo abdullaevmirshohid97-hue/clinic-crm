@@ -1,35 +1,26 @@
-import { defineConfig } from 'vite';
+import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { copyFileSync } from 'fs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
-  plugins: [
-    react(),
-    {
-      name: 'copy-htaccess',
-      closeBundle() {
-        try {
-          copyFileSync(
-            path.resolve(__dirname, '.htaccess'),
-            path.resolve(__dirname, 'dist/.htaccess')
-          );
-          console.log('✅ .htaccess copied to dist/');
-        } catch (e) {
-          console.log('⚠️ .htaccess not found, skipping...');
-        }
-      }
-    }
-  ],
+  plugins: [react()],
   base: './',
   root: '.',
-  envPrefix: 'VITE_',
   build: {
     outDir: 'dist',
     emptyOutDir: true,
+    chunkSizeWarningLimit: 700,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          react: ['react', 'react-dom'],
+          supabase: ['@supabase/supabase-js'],
+        },
+      },
+    },
   },
   resolve: {
     alias: {
@@ -37,10 +28,12 @@ export default defineConfig({
     },
   },
   server: {
-    port: 5000,
-    host: '0.0.0.0',
+    port: 5200,
     strictPort: true,
-    allowedHosts: true,
   },
-  envDir: __dirname,
+  envDir: '../../',
+  test: {
+    environment: 'jsdom',
+    globals: true,
+  },
 });

@@ -1,83 +1,55 @@
-name: CI/CD Pipeline
+name: CI Validation
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
-
-concurrency:
-  group: ci-cd-${{ github.ref }}
-  cancel-in-progress: true
+    branches: [main]
 
 jobs:
-  ci:
-    name: Lint Test Build
+  verify:
+    name: Verify (${{ matrix.target }})
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - verify:clinic
+          - verify:admin
+          - verify:backend-core
+          - verify:server
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Node.js
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'npm'
+          node-version: 20
+          cache: npm
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Lint
-        run: npm run lint -w apps/clinic-app --if-present
+      - name: Run verification target
+        run: npm run ${{ matrix.target }}
 
-      - name: Test
-        run: npm run test -w apps/clinic-app
-
-      - name: Build
-        run: npm run build -w apps/clinic-app
-
-  deploy:
-    name: Migrate and Deploy
+  security-audit:
+    name: Security audit gate
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-    needs: ci
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Node.js
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'npm'
+          node-version: 20
+          cache: npm
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Run Supabase migrations
-        if: ${{ secrets.SUPABASE_ACCESS_TOKEN != '' && secrets.SUPABASE_DB_PASSWORD != '' && secrets.SUPABASE_PROJECT_ID != '' }}
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
-          SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
-        run: npx supabase@latest db push --project-ref "$SUPABASE_PROJECT_ID" --password "$SUPABASE_DB_PASSWORD"
-
-      - name: Skip Supabase migrations (missing secrets)
-        if: ${{ !(secrets.SUPABASE_ACCESS_TOKEN != '' && secrets.SUPABASE_DB_PASSWORD != '' && secrets.SUPABASE_PROJECT_ID != '') }}
-        run: echo "Skipping Supabase migrations. Missing required secrets."
-
-      - name: Deploy to Vercel
-        if: ${{ secrets.VERCEL_TOKEN != '' && secrets.VERCEL_ORG_ID != '' && secrets.VERCEL_PROJECT_ID != '' }}
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-        run: npx vercel@latest deploy --prod --yes --token "$VERCEL_TOKEN"
-
-      - name: Skip deploy (missing hosting secrets)
-        if: ${{ !(secrets.VERCEL_TOKEN != '' && secrets.VERCEL_ORG_ID != '' && secrets.VERCEL_PROJECT_ID != '') }}
-        run: echo "Skipping deploy. Missing Vercel secrets."
+      - name: Run high/critical audit gate
+        run: node ./scripts/audit-gate.mjs
