@@ -5,7 +5,8 @@ import { supabase } from '../lib/supabase';
  * Uses Supabase session token for Authorization header.
  */
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1';
+const rawApiBase = import.meta.env.VITE_API_URL || '/api/v1';
+const API_BASE = rawApiBase.endsWith('/') ? rawApiBase.slice(0, -1) : rawApiBase;
 
 async function getAuthHeaders() {
   const {
@@ -42,16 +43,11 @@ async function handleResponse(res: Response, url: string, method: string) {
 
   if (!res.ok || data?.success === false) {
     if (contentType.includes('text/html') || raw.trim().startsWith('<!DOCTYPE') || raw.trim().startsWith('<html')) {
-      console.error(`[${timestamp}] API ERROR: ${method} ${url} returned HTML`, {
-        status: res.status,
-        contentType,
-      });
       throw new Error(
         `Server JSON o'rniga HTML qaytardi. API manzilini tekshiring (VITE_API_URL) va endpoint mavjudligini tasdiqlang.`
       );
     }
 
-    console.error(`[${timestamp}] API ERROR: ${method} ${url}`, data ?? raw);
     throw new Error(data?.error || data?.message || `HTTP ${res.status}`);
   }
 

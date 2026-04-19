@@ -46,19 +46,19 @@ export default function Cashier() {
 
   const loadTransactions = useCallback(async () => {
     try {
-      const startOfDay = `${date}T00:00:00`;
-      const endOfDay = `${date}T23:59:59.999`;
-
       const { data: txData, error: txErr } = await supabase
         .from('transactions')
-        .select('*, patients(fullName, phone), doctors(fullName)')
-        .gte('createdAt', startOfDay)
-        .lte('createdAt', endOfDay)
-        .order('id', { ascending: false });
+        .select(
+          '*, patients(fullName:full_name, phone), doctors(fullName:full_name)'
+        )
+        .order('id', { ascending: false })
+        .limit(500);
 
       if (txErr) throw txErr;
-
-      const txRows = txData ?? [];
+      const txRows = (txData ?? []).filter((r) => {
+        const ts = r.createdAt || r.created_at || r.timestamp || r.date;
+        return typeof ts === 'string' ? ts.startsWith(date) : false;
+      });
 
       // Fetch shift types for any shift_ids present in transactions
       const shiftIds = [...new Set(txRows.map((r) => r.shift_id).filter(Boolean))];
@@ -88,6 +88,8 @@ export default function Cashier() {
 
       const rows = txRows.map((r) => ({
         ...r,
+        createdAt: r.createdAt || r.createdAtLegacy,
+        paymentType: r.paymentType || r.paymentTypeLegacy,
         patientNameStr: (r.patients as { fullName?: string } | null)?.fullName,
         patientPhone: (r.patients as { phone?: string } | null)?.phone,
         doctorNameStr: (r.doctors as { fullName?: string } | null)?.fullName,
