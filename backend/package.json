@@ -7,7 +7,7 @@
     "dev": "ts-node src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
-    "test": "node --test --test-force-exit -r ts-node/register \"test/**/*.test.ts\""
+    "test": "TS_NODE_PROJECT=tsconfig.test.json DOTENV_CONFIG_PATH=.env.test node --test --test-force-exit -r dotenv/config -r ts-node/register \"test/**/*.test.ts\""
   },
   "keywords": [],
   "author": "",
