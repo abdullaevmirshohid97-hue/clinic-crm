@@ -32,8 +32,13 @@ jobs:
       - name: Lint
         run: npm run lint -w apps/clinic-app --if-present
 
-      - name: Test
+      - name: Test (Frontend)
         run: npm run test -w apps/clinic-app
+
+      - name: Test (Backend)
+        run: npm run test -w backend
+        env:
+          NODE_ENV: test
 
       - name: Build
         run: npm run build -w apps/clinic-app
