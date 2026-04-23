@@ -17,6 +17,8 @@ import StaffManagement from '../pages/StaffManagement';
 import Pharmacy from '../pages/Pharmacy';
 import SuperAdmin from '../pages/dashboard/SuperAdmin';
 import Subscription from '../pages/Subscription';
+import DoctorWorkspace from '../pages/doctor/DoctorWorkspace';
+import NurseWorkspace from '../pages/nurse/NurseWorkspace';
 
 export const PAGE_MAP = {
   dashboard: Dashboard,
@@ -34,6 +36,8 @@ export const PAGE_MAP = {
   archive: Archive,
   staff: StaffManagement,
   pharmacy: Pharmacy,
+  doctor_workspace: DoctorWorkspace,
+  nurse_workspace: NurseWorkspace,
   super_admin_panel: SuperAdmin,
   subscription: Subscription,
 };

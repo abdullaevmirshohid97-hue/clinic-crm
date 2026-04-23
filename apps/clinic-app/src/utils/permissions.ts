@@ -9,6 +9,8 @@ export const PAGE_PERMISSIONS = {
   inpatient: ['super_admin', 'admin', 'doctor', 'receptionist'],
   laboratory: ['super_admin', 'admin', 'doctor', 'lab_tech'],
   pharmacy: ['super_admin', 'admin', 'pharmacist', 'doctor'],
+  doctor_workspace: ['super_admin', 'admin', 'doctor'],
+  nurse_workspace: ['super_admin', 'admin', 'nurse'],
   cashier: ['super_admin', 'admin', 'cashier'],
   journal: ['super_admin', 'admin', 'cashier', 'doctor'],
   analytics: ['super_admin', 'admin'],

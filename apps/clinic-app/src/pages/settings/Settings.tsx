@@ -4,6 +4,7 @@ import { useToast } from '../../components/ui/Toast';
 import Modal from '../../components/ui/Modal';
 import { db } from '../../utils/db';
 import { printReceipt } from '../../utils/printer';
+import { api } from '../../services/api';
 import type {
   ClinicDoctor,
   ClinicService,
@@ -28,6 +29,18 @@ const FEATURES = [
   { id: 'journal', label: 'Jurnal & Moliya' },
   { id: 'analytics', label: 'Analitika' },
   { id: 'settings', label: 'Sozlamalar' },
+];
+
+const PAYMENT_PROVIDERS = [
+  { id: 'click', label: 'Click', region: 'UZ' },
+  { id: 'payme', label: 'Payme', region: 'UZ' },
+  { id: 'kaspi', label: 'Kaspi.kz', region: 'KZ' },
+  { id: 'halyk', label: 'Halyk Bank', region: 'KZ' },
+  { id: 'mbank', label: 'MBank', region: 'KG' },
+  { id: 'omoney', label: "O!Money", region: 'KG' },
+  { id: 'elsom', label: 'Elsom', region: 'KG' },
+  { id: 'paypal', label: 'PayPal', region: 'Global' },
+  { id: 'alipay', label: 'Alipay', region: 'Global' },
 ];
 
 export default function Settings() {
@@ -88,6 +101,13 @@ export default function Settings() {
   const [adminPin, setAdminPin] = useState('');
 
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+  const [paymentProviders, setPaymentProviders] = useState<
+    Record<string, { enabled: boolean; merchantId: string; secretKey: string; webhookSecret: string }>
+  >({});
+  const [paymentIntegrationPin, setPaymentIntegrationPin] = useState('');
+  const [paymentIntegrationPinConfirm, setPaymentIntegrationPinConfirm] = useState('');
+  const [paymentSectionUnlocked, setPaymentSectionUnlocked] = useState(false);
+  const [paymentSectionAccessPin, setPaymentSectionAccessPin] = useState('');
 
   async function loadAuditLogs() {
     try {
@@ -145,6 +165,10 @@ export default function Settings() {
       setSelectedPrinter(obj.printerName || '');
       setSidebarEditMode(obj.sidebarEditMode === '1');
       setQrPath(obj.printerQrPath || '');
+      setPaymentIntegrationPin('');
+      setPaymentIntegrationPinConfirm('');
+      setPaymentSectionUnlocked(false);
+      setPaymentSectionAccessPin('');
 
       const savedPin = localStorage.getItem('clinic_admin_pin');
       setAdminPin(savedPin || '');
@@ -395,6 +419,75 @@ export default function Settings() {
     return Number(n ?? 0).toLocaleString('uz-UZ');
   }
 
+  async function savePaymentProviders() {
+    try {
+      const providers = PAYMENT_PROVIDERS.map((provider) => ({
+        provider: provider.id,
+        enabled: Boolean(paymentProviders[provider.id]?.enabled),
+        merchantId: paymentProviders[provider.id]?.merchantId || '',
+        secretKey: paymentProviders[provider.id]?.secretKey || '',
+        webhookSecret: paymentProviders[provider.id]?.webhookSecret || '',
+      }));
+      await api.put('/payments/providers', {
+        pin: paymentSectionAccessPin,
+        providers,
+      });
+      toast.success("To'lov integratsiyalari saqlandi");
+      await loadPaymentProviders();
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : String(err));
+    }
+  }
+
+  async function savePaymentIntegrationPin() {
+    if (paymentIntegrationPin !== paymentIntegrationPinConfirm) {
+      toast.error('PIN tasdiqlash maydoni mos emas');
+      return;
+    }
+    try {
+      await api.post('/payments/providers/pin', { pin: paymentIntegrationPin.trim() });
+      setPaymentSectionUnlocked(paymentIntegrationPin.trim().length === 0);
+      setPaymentIntegrationPin('');
+      setPaymentIntegrationPinConfirm('');
+      toast.success("To'lov integratsiya PIN saqlandi");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : String(err));
+    }
+  }
+
+  async function unlockPaymentSection() {
+    try {
+      await api.post('/payments/providers/unlock', { pin: paymentSectionAccessPin });
+      setPaymentSectionUnlocked(true);
+      await loadPaymentProviders();
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : String(err));
+    }
+  }
+
+  async function loadPaymentProviders() {
+    try {
+      const res = await api.get('/payments/providers');
+      const rows = Array.isArray(res?.data) ? res.data : [];
+      const next: Record<
+        string,
+        { enabled: boolean; merchantId: string; secretKey: string; webhookSecret: string }
+      > = {};
+      PAYMENT_PROVIDERS.forEach((provider) => {
+        const row = rows.find((x: any) => x.provider === provider.id);
+        next[provider.id] = {
+          enabled: Boolean(row?.enabled),
+          merchantId: row?.merchantId || '',
+          secretKey: '',
+          webhookSecret: '',
+        };
+      });
+      setPaymentProviders(next);
+    } catch {
+      // keep local defaults until unlocked/available
+    }
+  }
+
   return (
     <div
       className="page page-settings"
@@ -535,6 +628,36 @@ export default function Settings() {
             </div>
             <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
               Xizmat narxlari, printer va kvitansiya logikasi
+            </div>
+          </button>
+
+          <button
+            className={`nav-item ${activeTab === 'finance' ? 'active' : ''}`}
+            style={{
+              border: 'none',
+              background: activeTab === 'finance' ? 'var(--bg-input)' : 'transparent',
+              textAlign: 'left',
+              padding: '14px 16px',
+              borderRadius: 12,
+              cursor: 'pointer',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 4,
+              transition: '0.2s',
+            }}
+            onClick={() => setActiveTab('finance')}
+          >
+            <div
+              style={{
+                fontWeight: 700,
+                fontSize: 15,
+                color: activeTab === 'finance' ? 'var(--text-primary)' : 'var(--text-secondary)',
+              }}
+            >
+              💳 To'lov tizimlari
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+              Click, Payme va boshqa payment integratsiyalar
             </div>
           </button>
 
@@ -991,6 +1114,136 @@ export default function Settings() {
                   </div>
                 </div>
               )}
+
+              {showSection(['click', 'payme', 'kaspi', 'halyk', 'mbank', 'omoney', 'elsom', 'paypal', 'alipay', 'payment', 'integratsiya']) && (
+                <div className="card glass-card mb-4" style={{ borderLeft: '4px solid var(--accent-primary)' }}>
+                  <div className="card-header">
+                    <h3>💳 To'lov tizimlari integratsiyasi (clinic-level)</h3>
+                  </div>
+                  <div className="card-body">
+                    {!paymentSectionUnlocked ? (
+                      <div
+                        style={{
+                          border: '1px dashed var(--border-color)',
+                          borderRadius: 10,
+                          padding: 14,
+                          background: 'var(--bg-input)',
+                          maxWidth: 420,
+                        }}
+                      >
+                        <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 10 }}>
+                          Bo'lim PIN bilan himoyalangan. Admin tomonidan o'rnatilgan kodni kiriting.
+                        </p>
+                        <input
+                          type="password"
+                          className="form-input"
+                          placeholder="PIN kod"
+                          value={paymentSectionAccessPin}
+                          onChange={(e) => setPaymentSectionAccessPin(e.target.value)}
+                        />
+                        <button className="btn btn-primary mt-3" onClick={unlockPaymentSection}>
+                          Ochish
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>
+                          Har bir klinika uchun alohida provider keylari saqlanadi. Yoqilmagan providerlar qabulxonada ko'rsatilmaydi.
+                        </p>
+                        <div style={{ display: 'grid', gap: 12 }}>
+                          {PAYMENT_PROVIDERS.map((provider) => {
+                            const cfg = paymentProviders[provider.id] || {
+                              enabled: false,
+                              merchantId: '',
+                              secretKey: '',
+                              webhookSecret: '',
+                            };
+                            return (
+                              <div
+                                key={provider.id}
+                                style={{
+                                  border: '1px solid var(--border-color)',
+                                  borderRadius: 10,
+                                  padding: 12,
+                                  background: 'var(--bg-input)',
+                                }}
+                              >
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                                  <strong>{provider.label}</strong>
+                                  <label style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                                    <input
+                                      type="checkbox"
+                                      checked={cfg.enabled}
+                                      onChange={(e) =>
+                                        setPaymentProviders((prev) => ({
+                                          ...prev,
+                                          [provider.id]: { ...cfg, enabled: e.target.checked },
+                                        }))
+                                      }
+                                    />
+                                    Faol
+                                  </label>
+                                </div>
+                                <div style={{ fontSize: 11, opacity: 0.7, marginBottom: 8 }}>
+                                  Region: {provider.region}
+                                </div>
+                                {cfg.enabled && (
+                                  <div className="form-grid">
+                                    <div className="form-group">
+                                      <label>Merchant ID / Account</label>
+                                      <input
+                                        className="form-input"
+                                        value={cfg.merchantId}
+                                        onChange={(e) =>
+                                          setPaymentProviders((prev) => ({
+                                            ...prev,
+                                            [provider.id]: { ...cfg, merchantId: e.target.value },
+                                          }))
+                                        }
+                                      />
+                                    </div>
+                                    <div className="form-group">
+                                      <label>Secret Key</label>
+                                      <input
+                                        className="form-input"
+                                        type="password"
+                                        value={cfg.secretKey}
+                                        onChange={(e) =>
+                                          setPaymentProviders((prev) => ({
+                                            ...prev,
+                                            [provider.id]: { ...cfg, secretKey: e.target.value },
+                                          }))
+                                        }
+                                      />
+                                    </div>
+                                    <div className="form-group full-width">
+                                      <label>Webhook Secret</label>
+                                      <input
+                                        className="form-input"
+                                        type="password"
+                                        value={cfg.webhookSecret}
+                                        onChange={(e) =>
+                                          setPaymentProviders((prev) => ({
+                                            ...prev,
+                                            [provider.id]: { ...cfg, webhookSecret: e.target.value },
+                                          }))
+                                        }
+                                      />
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                        <button className="btn btn-primary mt-4" onClick={savePaymentProviders}>
+                          Integratsiyalarni saqlash
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -1042,6 +1295,32 @@ export default function Settings() {
                           O'chirish
                         </button>
                       </div>
+                    </div>
+                    <div
+                      className="form-group full-width"
+                      style={{ maxWidth: 420, marginTop: 18, paddingTop: 12, borderTop: '1px solid var(--border-color)' }}
+                    >
+                      <label>To'lov integratsiyasi PIN kodi (bo'limni himoyalash)</label>
+                      <input
+                        type="password"
+                        className="form-input"
+                        value={paymentIntegrationPin}
+                        placeholder="Yangi PIN"
+                        onChange={(e) => setPaymentIntegrationPin(e.target.value)}
+                      />
+                      <input
+                        type="password"
+                        className="form-input mt-2"
+                        value={paymentIntegrationPinConfirm}
+                        placeholder="PIN qayta kiriting"
+                        onChange={(e) => setPaymentIntegrationPinConfirm(e.target.value)}
+                      />
+                      <button className="btn btn-primary mt-2" onClick={savePaymentIntegrationPin}>
+                        To'lov PIN ni saqlash
+                      </button>
+                      <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>
+                        Bo'sh qoldirsangiz to'lov integratsiya bo'limi ochiq bo'ladi.
+                      </p>
                     </div>
                   </div>
                 </div>

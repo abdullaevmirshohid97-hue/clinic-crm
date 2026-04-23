@@ -14,6 +14,8 @@ export default {
     staff: 'Сотрудники',
     subscription: 'Моя Подписка',
     settings: 'Настройки',
+    doctor_workspace: 'Окно врача',
+    nurse_workspace: 'Окно медсестры',
   },
   common: {
     success: 'Успешно сохранено',

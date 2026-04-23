@@ -14,6 +14,8 @@ export default {
     staff: 'Staff',
     subscription: 'My Subscription',
     settings: 'Settings',
+    doctor_workspace: 'Doctor Workspace',
+    nurse_workspace: 'Nurse Workspace',
   },
   common: {
     success: 'Saved successfully',

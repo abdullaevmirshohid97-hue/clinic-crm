@@ -14,6 +14,7 @@
     "test": "npm run test -w apps/clinic-app",
     "build": "npm run build --workspaces --if-present",
     "install:all": "npm install",
+    "validate:permissions": "node scripts/validate-permission-matrix.mjs",
     "migrate": "bash scripts/migrate.sh",
     "deploy:functions": "bash scripts/deploy-functions.sh"
   },

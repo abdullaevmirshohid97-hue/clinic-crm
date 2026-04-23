@@ -51,7 +51,10 @@ export default function App() {
 
   const handleNavigate = useCallback((page: string) => {
     const target = FKEY_NAV_MAP[page] || page;
-    if (!authStore.hasPermission(target) && !authStore.hasRole('super_admin')) {
+    const allowedRoles = (PAGE_PERMISSIONS as Record<string, string[]>)[target];
+    const canByPermission = authStore.hasPermission(target) || authStore.hasRole('super_admin');
+    const canByRole = !!allowedRoles && authStore.hasRole(...allowedRoles);
+    if (!canByPermission && !canByRole) {
       toast.error("Bu bo'limga kirishga ruxsat yo'q");
       return;
     }

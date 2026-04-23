@@ -6,6 +6,19 @@ import { authStore } from '../app/store';
  * All calls are routed through Supabase with Clinic isolation.
  */
 export const db = {
+  normalizeError: (err: unknown) => {
+    if (err instanceof Error) return err.message;
+    if (typeof err === 'string') return err;
+    if (err && typeof err === 'object') {
+      const maybeMessage = (err as { message?: unknown }).message;
+      const maybeDetails = (err as { details?: unknown }).details;
+      const maybeHint = (err as { hint?: unknown }).hint;
+      return [maybeMessage, maybeDetails, maybeHint]
+        .filter((v): v is string => typeof v === 'string' && v.length > 0)
+        .join(' | ') || JSON.stringify(err);
+    }
+    return 'Unknown database error';
+  },
   getContext: () => {
     const clinicId = authStore.clinicId;
     if (!clinicId) {
@@ -29,9 +42,10 @@ export const db = {
       
       if (error) throw error;
       return { success: true, data };
-    } catch (err: any) {
-      console.error(`DB GetAll Error (${table}):`, err);
-      return { success: false, error: err.message };
+    } catch (err: unknown) {
+      const errorText = db.normalizeError(err);
+      console.error(`DB GetAll Error (${table}):`, errorText, err);
+      return { success: false, error: errorText };
     }
   },
 
@@ -47,9 +61,10 @@ export const db = {
       const { data, error } = await query.single();
       if (error) throw error;
       return { success: true, data };
-    } catch (err: any) {
-      console.error(`DB GetOne Error (${table}, ${id}):`, err);
-      return { success: false, error: err.message };
+    } catch (err: unknown) {
+      const errorText = db.normalizeError(err);
+      console.error(`DB GetOne Error (${table}, ${id}):`, errorText, err);
+      return { success: false, error: errorText };
     }
   },
 
@@ -77,9 +92,10 @@ export const db = {
       const { data, error } = await query;
       if (error) throw error;
       return { success: true, data };
-    } catch (err: any) {
-      console.error(`DB GetWhere Error (${table}):`, err);
-      return { success: false, error: err.message };
+    } catch (err: unknown) {
+      const errorText = db.normalizeError(err);
+      console.error(`DB GetWhere Error (${table}):`, errorText, err);
+      return { success: false, error: errorText };
     }
   },
 
@@ -101,9 +117,10 @@ export const db = {
 
       if (error) throw error;
       return { success: true, data: Array.isArray(data) ? inserted : inserted?.[0] };
-    } catch (err: any) {
-      console.error(`DB Insert Error (${table}):`, err);
-      return { success: false, error: err.message };
+    } catch (err: unknown) {
+      const errorText = db.normalizeError(err);
+      console.error(`DB Insert Error (${table}):`, errorText, err);
+      return { success: false, error: errorText };
     }
   },
 
@@ -120,9 +137,10 @@ export const db = {
       const { data: updated, error } = await query.select().single();
       if (error) throw error;
       return { success: true, data: updated };
-    } catch (err: any) {
-      console.error(`DB Update Error (${table}, ${id}):`, err);
-      return { success: false, error: err.message };
+    } catch (err: unknown) {
+      const errorText = db.normalizeError(err);
+      console.error(`DB Update Error (${table}, ${id}):`, errorText, err);
+      return { success: false, error: errorText };
     }
   },
 
@@ -139,9 +157,10 @@ export const db = {
       const { error } = await query;
       if (error) throw error;
       return { success: true };
-    } catch (err: any) {
-      console.error(`DB Delete Error (${table}, ${id}):`, err);
-      return { success: false, error: err.message };
+    } catch (err: unknown) {
+      const errorText = db.normalizeError(err);
+      console.error(`DB Delete Error (${table}, ${id}):`, errorText, err);
+      return { success: false, error: errorText };
     }
   },
 

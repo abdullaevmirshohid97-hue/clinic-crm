@@ -18,6 +18,8 @@ const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
       { key: 'reception', icon: '📝', fKey: 'F2' },
       { key: 'queue', icon: '🎫', fKey: 'F3' },
       { key: 'inpatient', icon: '🛌', fKey: 'F6' },
+      { key: 'doctor_workspace', icon: '🩺' },
+      { key: 'nurse_workspace', icon: '💉' },
     ],
   },
   {

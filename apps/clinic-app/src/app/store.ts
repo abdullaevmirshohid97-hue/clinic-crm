@@ -17,12 +17,15 @@ const ALL_FEATURES = [
   'staff',
   'subscription',
   'settings',
+  'doctor_workspace',
+  'nurse_workspace',
 ];
 
 const ROLE_FALLBACK_PERMISSIONS: Record<string, string[]> = {
   super_admin: ALL_FEATURES,
   admin: ALL_FEATURES,
-  doctor: ['dashboard', 'reception', 'queue', 'inpatient', 'laboratory', 'pharmacy', 'archive'],
+  doctor: ['dashboard', 'reception', 'queue', 'inpatient', 'laboratory', 'pharmacy', 'archive', 'doctor_workspace', 'journal'],
+  nurse: ['dashboard', 'queue', 'inpatient', 'laboratory', 'archive', 'nurse_workspace'],
   cashier: ['dashboard', 'reception', 'queue', 'cashier', 'journal', 'analytics', 'archive'],
 };
 

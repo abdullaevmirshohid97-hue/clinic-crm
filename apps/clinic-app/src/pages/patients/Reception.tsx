@@ -11,6 +11,7 @@ import { useToast } from '../../components/ui/Toast';
 import Modal from '../../components/ui/Modal';
 import { db } from '../../utils/db';
 import { printReceipt } from '../../utils/printer';
+import { api } from '../../services/api';
 import type {
   ReceptionHandle,
   ClinicService,
@@ -54,6 +55,7 @@ const Reception = forwardRef<ReceptionHandle, Record<string, never>>(
     const [selectedServices, setSelectedServices] = useState<SelectedServiceItem[]>([]);
     const [selectedDoctor, setSelectedDoctor] = useState<ClinicDoctor | null>(null);
     const [paymentType, setPaymentType] = useState('cash');
+    const [transferProvider, setTransferProvider] = useState('click');
     const [discount, setDiscount] = useState(0);
     const [showDoctorModal, setShowDoctorModal] = useState(false);
     const [searchPatient, setSearchPatient] = useState('');
@@ -72,6 +74,25 @@ const Reception = forwardRef<ReceptionHandle, Record<string, never>>(
     const [serviceViewMode, setServiceViewMode] = useState('grid'); // 'grid' or 'list'
     const [serviceSortOrder, setServiceSortOrder] = useState('manual'); // 'manual' or 'az'
     const [isLoaded, setIsLoaded] = useState(false);
+    const [patientFinancials, setPatientFinancials] = useState({
+      inpatientDeposit: 0,
+      inpatientDebt: 0,
+      outpatientDebt: 0,
+      totalDebt: 0,
+      activeRoomPatientId: null as number | null,
+    });
+    const [showDebtPaymentModal, setShowDebtPaymentModal] = useState(false);
+    const [debtPaymentAmount, setDebtPaymentAmount] = useState('');
+    const [debtPaymentType, setDebtPaymentType] = useState('cash');
+    const [debtTransferProvider, setDebtTransferProvider] = useState('click');
+    const [showDepositTopupModal, setShowDepositTopupModal] = useState(false);
+    const [depositTopupAmount, setDepositTopupAmount] = useState('');
+    const [depositTopupType, setDepositTopupType] = useState('cash');
+    const [depositTransferProvider, setDepositTransferProvider] = useState('click');
+    const [enabledTransferProviders, setEnabledTransferProviders] = useState<string[]>([
+      'click',
+      'payme',
+    ]);
 
     const serviceSearchRef = useRef<HTMLInputElement>(null);
     const serviceGridRef = useRef<HTMLDivElement>(null);
@@ -212,6 +233,84 @@ const Reception = forwardRef<ReceptionHandle, Record<string, never>>(
       }
     }
 
+    async function loadEnabledProviders() {
+      try {
+        const res = await api.get('/payments/providers');
+        const providers = (Array.isArray(res?.data) ? res.data : [])
+          .filter((row: any) => Boolean(row?.enabled))
+          .map((row: any) => String(row.provider));
+        const normalized = providers.length > 0 ? providers : ['click', 'payme'];
+        setEnabledTransferProviders(normalized);
+        if (!normalized.includes(transferProvider)) setTransferProvider(normalized[0]);
+        if (!normalized.includes(debtTransferProvider)) setDebtTransferProvider(normalized[0]);
+        if (!normalized.includes(depositTransferProvider))
+          setDepositTransferProvider(normalized[0]);
+      } catch {
+        setEnabledTransferProviders(['click', 'payme']);
+      }
+    }
+
+    async function loadPatientFinancials(
+      patientId?: number | null,
+      patientNameRaw?: string | null
+    ) {
+      try {
+        const allTransactions = await db.getAllRows<any>('transactions');
+        const allRoomPatients = await db.getAllRows<any>('room_patients');
+        const patientName = (patientNameRaw || '').trim().toLowerCase();
+
+        const patientTx = allTransactions.filter((tx) => {
+          const byId = patientId != null && Number(tx.patientId) === Number(patientId);
+          const byName =
+            patientName.length > 0 &&
+            String(tx.patient_name || '')
+              .trim()
+              .toLowerCase() === patientName;
+          return byId || byName;
+        });
+
+        const debtRaised = patientTx.reduce((sum, tx) => {
+          const debtAmount = Number(tx.debt ?? tx.amount ?? 0);
+          const isDebt =
+            tx.type === 'debt' || (tx.paymentType === 'debt' && Number(tx.amount || 0) > 0);
+          return sum + (isDebt ? debtAmount : 0);
+        }, 0);
+
+        const debtPaid = patientTx.reduce((sum, tx) => {
+          const isDebtPayment =
+            tx.type === 'debt_payment' ||
+            (tx.type === 'payment' &&
+              typeof tx.description === 'string' &&
+              tx.description.toLowerCase().includes('qarz'));
+          return sum + (isDebtPayment ? Number(tx.amount || 0) : 0);
+        }, 0);
+
+        const outstandingDebt = Math.max(0, debtRaised - debtPaid);
+
+        const activeRoom = allRoomPatients.find((rp) => {
+          const byId = patientId != null && Number(rp.patientId) === Number(patientId);
+          return byId && rp.status === 'active';
+        });
+
+        const inpatientDeposit = Number(activeRoom?.depositBalance || 0);
+        setPatientFinancials({
+          inpatientDeposit,
+          inpatientDebt: outstandingDebt,
+          outpatientDebt: 0,
+          totalDebt: outstandingDebt,
+          activeRoomPatientId: activeRoom?.id ?? null,
+        });
+      } catch {
+        setPatientFinancials({
+          inpatientDeposit: 0,
+          inpatientDebt: 0,
+          outpatientDebt: 0,
+          totalDebt: 0,
+          activeRoomPatientId: null,
+        });
+      }
+    }
+
     function selectExistingPatient(p: ExistingPatient) {
       setSelectedPatientId(p.id);
       setPatient({
@@ -229,7 +328,31 @@ const Reception = forwardRef<ReceptionHandle, Record<string, never>>(
       }
       setShowPatientSearch(false);
       setSearchPatient('');
+      loadPatientFinancials(p.id, p.fullName);
     }
+
+    useEffect(() => {
+      if (selectedPatientId) {
+        loadPatientFinancials(selectedPatientId, patient.fullName);
+        return;
+      }
+      const typedName = patient.fullName.trim();
+      if (typedName.length >= 3) {
+        loadPatientFinancials(null, typedName);
+      } else {
+        setPatientFinancials({
+          inpatientDeposit: 0,
+          inpatientDebt: 0,
+          outpatientDebt: 0,
+          totalDebt: 0,
+          activeRoomPatientId: null,
+        });
+      }
+    }, [selectedPatientId, patient.fullName]);
+
+    useEffect(() => {
+      loadEnabledProviders();
+    }, []);
 
     const sortedServices = [...services].sort((a, b) => {
       if (serviceSortOrder === 'az') return a.name.localeCompare(b.name);
@@ -447,7 +570,9 @@ const Reception = forwardRef<ReceptionHandle, Record<string, never>>(
             type: 'payment',
             amount: Math.round(svc.price * svc.quantity * (1 - discount / 100)),
             paymentType,
-            description: svc.quantity > 1 ? `${svc.name} x${svc.quantity}` : svc.name,
+            description:
+              (svc.quantity > 1 ? `${svc.name} x${svc.quantity}` : svc.name) +
+              (paymentType === 'transfer' ? ` (${transferProvider})` : ''),
             shift_id: activeShift?.id || null,
           });
 
@@ -482,7 +607,7 @@ const Reception = forwardRef<ReceptionHandle, Record<string, never>>(
 
         if (selectedDoctor) {
           const today = new Date().toISOString().split('T')[0];
-          const qs = await db.getAllRows('queue');
+          const qs = await db.getAllRows('queues');
           const todayQs = qs.filter(
             (x) => x.doctorId === selectedDoctor.id && x.createdAt && x.createdAt.startsWith(today)
           );
@@ -490,7 +615,7 @@ const Reception = forwardRef<ReceptionHandle, Record<string, never>>(
             todayQs.length > 0 ? Math.max(...todayQs.map((x) => x.number || 0)) + 1 : 1;
           const prefix = selectedDoctor.prefix || 'A';
 
-          await db.insert('queue', {
+          await db.insert('queues', {
             appointmentId: firstApptId,
             doctorId: selectedDoctor.id,
             patientId: patientId || null,
@@ -565,7 +690,9 @@ const Reception = forwardRef<ReceptionHandle, Record<string, never>>(
             type: 'payment',
             amount: Math.round(svc.price * svc.quantity * (1 - discount / 100)),
             paymentType,
-            description: svc.quantity > 1 ? `${svc.name} x${svc.quantity}` : svc.name,
+            description:
+              (svc.quantity > 1 ? `${svc.name} x${svc.quantity}` : svc.name) +
+              (paymentType === 'transfer' ? ` (${transferProvider})` : ''),
             shift_id: activeShift?.id || null,
           });
 
@@ -590,7 +717,7 @@ const Reception = forwardRef<ReceptionHandle, Record<string, never>>(
 
         if (selectedDoctor) {
           const today = new Date().toISOString().split('T')[0];
-          const qs = await db.getAllRows('queue');
+          const qs = await db.getAllRows('queues');
           const todayQs = qs.filter(
             (x) => x.doctorId === selectedDoctor.id && x.createdAt && x.createdAt.startsWith(today)
           );
@@ -598,7 +725,7 @@ const Reception = forwardRef<ReceptionHandle, Record<string, never>>(
             todayQs.length > 0 ? Math.max(...todayQs.map((x) => x.number || 0)) + 1 : 1;
           const prefix = selectedDoctor.prefix || 'A';
 
-          await db.insert('queue', {
+          await db.insert('queues', {
             appointmentId: firstApptId,
             doctorId: selectedDoctor.id,
             patientId: patientId || null,
@@ -621,6 +748,7 @@ const Reception = forwardRef<ReceptionHandle, Record<string, never>>(
       setSelectedServices([]);
       setSelectedDoctor(null);
       setPaymentType('cash');
+      setTransferProvider('click');
       setDiscount(0);
       setSelectedPatientId(null);
       setPatientStatsionarInfo(null);
@@ -1030,6 +1158,46 @@ const Reception = forwardRef<ReceptionHandle, Record<string, never>>(
                       </span>
                     )}
                   </div>
+                  {paymentType === 'transfer' && (
+                    <div className="payment-types" style={{ marginTop: 10 }}>
+                      {enabledTransferProviders.map((provider) => (
+                        <button
+                          key={provider}
+                          className={`payment-btn ${transferProvider === provider ? 'active' : ''}`}
+                          onClick={() => setTransferProvider(provider)}
+                        >
+                          {provider}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {(selectedPatientId || patient.fullName.trim()) && (
+                    <div className="card" style={{ marginTop: 12, padding: 10 }}>
+                      <div style={{ fontWeight: 700, marginBottom: 8 }}>Bemor moliyaviy holati</div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                        <span>Statsionar deposit:</span>
+                        <span>{formatPrice(patientFinancials.inpatientDeposit)} so'm</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                        <span>Qarzdorlik:</span>
+                        <span style={{ color: 'var(--accent-danger)', fontWeight: 700 }}>
+                          {formatPrice(patientFinancials.totalDebt)} so'm
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                        <button className="btn btn-secondary" onClick={() => setShowDebtPaymentModal(true)}>
+                          Qarz to'lash
+                        </button>
+                        <button
+                          className="btn btn-secondary"
+                          onClick={() => setShowDepositTopupModal(true)}
+                          disabled={!patientFinancials.activeRoomPatientId}
+                        >
+                          Deposit qo'shish
+                        </button>
+                      </div>
+                    </div>
+                  )}
                   <div className="form-group" style={{ marginTop: 15 }}>
                     <label>{t('reception.notes')}</label>
                     <textarea
@@ -1196,6 +1364,7 @@ const Reception = forwardRef<ReceptionHandle, Record<string, never>>(
               <span className="check-label">{t('reception.payment')}:</span>
               <span className="check-value">
                 {paymentIcon(paymentType)} {t(`reception.${paymentType}`)}
+                {paymentType === 'transfer' ? ` (${transferProvider})` : ''}
               </span>
             </div>
             <div className="check-preview-divider" />
@@ -1211,6 +1380,173 @@ const Reception = forwardRef<ReceptionHandle, Record<string, never>>(
             </div>
             <div className="check-preview-hint">{t('reception.checkHint')}</div>
           </div>
+        </Modal>
+
+        <Modal
+          isOpen={showDebtPaymentModal}
+          onClose={() => setShowDebtPaymentModal(false)}
+          title="Qarz to'lash"
+          width={420}
+        >
+          <div className="form-grid">
+            <div className="form-group full-width">
+              <label>To'lov summasi</label>
+              <input
+                type="number"
+                className="form-input"
+                value={debtPaymentAmount}
+                onChange={(e) => setDebtPaymentAmount(e.target.value)}
+                placeholder="0"
+              />
+            </div>
+            <div className="form-group full-width">
+              <label>To'lov turi</label>
+              <div className="payment-types">
+                {['cash', 'card', 'transfer'].map((type) => (
+                  <button
+                    key={type}
+                    className={`payment-btn ${debtPaymentType === type ? 'active' : ''}`}
+                    onClick={() => setDebtPaymentType(type)}
+                  >
+                    {paymentIcon(type)} {t(`reception.${type}`)}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {debtPaymentType === 'transfer' && (
+              <div className="form-group full-width">
+                <label>Transfer operatori</label>
+                <div className="payment-types">
+                  {enabledTransferProviders.map((provider) => (
+                    <button
+                      key={provider}
+                      className={`payment-btn ${debtTransferProvider === provider ? 'active' : ''}`}
+                      onClick={() => setDebtTransferProvider(provider)}
+                    >
+                      {provider}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+          <button
+            className="btn btn-primary w-full mt-4"
+            onClick={async () => {
+              const amount = Number(debtPaymentAmount);
+              if (amount <= 0) return toast.error('To`lov summasini kiriting');
+              if (!selectedPatientId && !patient.fullName.trim()) {
+                return toast.error('Bemorni tanlang');
+              }
+              try {
+                await db.insert('transactions', {
+                  patientId: selectedPatientId || null,
+                  patient_name: patient.fullName.trim() || null,
+                  type: 'debt_payment',
+                  paymentType: debtPaymentType,
+                  amount,
+                  description:
+                    `Qarz to'lovi` +
+                    (debtPaymentType === 'transfer' ? ` (${debtTransferProvider})` : ''),
+                  shift_id: activeShift?.id || null,
+                });
+                toast.success("Qarz to'lovi qabul qilindi");
+                setDebtPaymentAmount('');
+                setShowDebtPaymentModal(false);
+                loadPatientFinancials(selectedPatientId, patient.fullName);
+              } catch (err: unknown) {
+                toast.error(err instanceof Error ? err.message : String(err));
+              }
+            }}
+          >
+            To'lovni qabul qilish
+          </button>
+        </Modal>
+
+        <Modal
+          isOpen={showDepositTopupModal}
+          onClose={() => setShowDepositTopupModal(false)}
+          title="Statsionar deposit to'ldirish"
+          width={420}
+        >
+          <div className="form-grid">
+            <div className="form-group full-width">
+              <label>To'lov summasi</label>
+              <input
+                type="number"
+                className="form-input"
+                value={depositTopupAmount}
+                onChange={(e) => setDepositTopupAmount(e.target.value)}
+                placeholder="0"
+              />
+            </div>
+            <div className="form-group full-width">
+              <label>To'lov turi</label>
+              <div className="payment-types">
+                {['cash', 'card', 'transfer'].map((type) => (
+                  <button
+                    key={type}
+                    className={`payment-btn ${depositTopupType === type ? 'active' : ''}`}
+                    onClick={() => setDepositTopupType(type)}
+                  >
+                    {paymentIcon(type)} {t(`reception.${type}`)}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {depositTopupType === 'transfer' && (
+              <div className="form-group full-width">
+                <label>Transfer operatori</label>
+                <div className="payment-types">
+                  {enabledTransferProviders.map((provider) => (
+                    <button
+                      key={provider}
+                      className={`payment-btn ${depositTransferProvider === provider ? 'active' : ''}`}
+                      onClick={() => setDepositTransferProvider(provider)}
+                    >
+                      {provider}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+          <button
+            className="btn btn-primary w-full mt-4"
+            onClick={async () => {
+              const amount = Number(depositTopupAmount);
+              if (amount <= 0) return toast.error('Summani kiriting');
+              if (!patientFinancials.activeRoomPatientId) return toast.error('Faol statsionar topilmadi');
+              try {
+                const rpRows = await db.getAllRows<any>('room_patients');
+                const rp = rpRows.find((x) => x.id === patientFinancials.activeRoomPatientId);
+                if (!rp) return toast.error('Statsionar yozuvi topilmadi');
+
+                await db.update('room_patients', rp.id, {
+                  depositBalance: Number(rp.depositBalance || 0) + amount,
+                });
+                await db.insert('transactions', {
+                  patientId: selectedPatientId || rp.patientId || null,
+                  patient_name: patient.fullName.trim() || null,
+                  type: 'payment',
+                  paymentType: depositTopupType,
+                  amount,
+                  description:
+                    `Statsionar deposit to'ldirish` +
+                    (depositTopupType === 'transfer' ? ` (${depositTransferProvider})` : ''),
+                  shift_id: activeShift?.id || null,
+                });
+                toast.success("Deposit to'ldirildi");
+                setDepositTopupAmount('');
+                setShowDepositTopupModal(false);
+                loadPatientFinancials(selectedPatientId, patient.fullName);
+              } catch (err: unknown) {
+                toast.error(err instanceof Error ? err.message : String(err));
+              }
+            }}
+          >
+            Depositni qabul qilish
+          </button>
         </Modal>
         {/* Shift Modal */}
         <Modal

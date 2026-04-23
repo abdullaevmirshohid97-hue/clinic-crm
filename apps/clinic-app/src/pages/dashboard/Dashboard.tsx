@@ -5,10 +5,16 @@ import { supabase } from '../../utils/supabase';
 
 interface AppointmentRow {
   id: number;
-  createdAt: string;
+  createdAt?: string;
   amount: number | null;
-  patients: { fullName: string } | null;
-  services: { name: string } | null;
+  patients?: { fullName?: string; full_name?: string } | null;
+  services?: { name?: string } | null;
+  patient_name?: string | null;
+  service_name?: string | null;
+  doctorId?: string | null;
+  doctor_id?: string | null;
+  timestamp?: string | null;
+  date?: string | null;
 }
 
 interface TransactionRow {
@@ -38,36 +44,11 @@ export default function Dashboard({ onNavigate }: { onNavigate?: (page: string) 
   const loadAll = useCallback(async () => {
     try {
       const today = new Date().toISOString().split('T')[0];
-      const startOfDay = `${today}T00:00:00`;
-      const endOfDay = `${today}T23:59:59.999`;
-
-      const [txnResult, apptResult, activeRoomResult, apptTableResult, txnTableResult] =
+      const [txnResult, apptResult, activeRoomResult] =
         await Promise.all([
-          supabase
-            .from('transactions')
-            .select('amount')
-            .gte('createdAt', startOfDay)
-            .lte('createdAt', endOfDay),
-          supabase
-            .from('appointments')
-            .select('id, doctorId')
-            .gte('createdAt', startOfDay)
-            .lte('createdAt', endOfDay),
+          supabase.from('transactions').select('*').order('id', { ascending: false }).limit(300),
+          supabase.from('appointments').select('*').order('id', { ascending: false }).limit(300),
           supabase.from('room_patients').select('id').eq('status', 'active'),
-          supabase
-            .from('appointments')
-            .select('id, createdAt, amount, patients(fullName), services(name)')
-            .gte('createdAt', startOfDay)
-            .lte('createdAt', endOfDay)
-            .order('createdAt', { ascending: false })
-            .limit(10),
-          supabase
-            .from('transactions')
-            .select('id, createdAt, amount, patient_name, paymentType, type')
-            .gte('createdAt', startOfDay)
-            .lte('createdAt', endOfDay)
-            .order('createdAt', { ascending: false })
-            .limit(10),
         ]);
 
       if (txnResult.error) throw new Error(`Transactions: ${txnResult.error.message}`);
@@ -75,15 +56,24 @@ export default function Dashboard({ onNavigate }: { onNavigate?: (page: string) 
       if (activeRoomResult.error)
         throw new Error(`Room patients: ${activeRoomResult.error.message}`);
 
-      const revenueToday = (txnResult.data ?? []).reduce(
-        (sum, r) => sum + (Number(r.amount) || 0),
-        0
-      );
+      const txRowsRaw = (txnResult.data as Array<Record<string, unknown>> | null) ?? [];
+      const todayTransactions = txRowsRaw.filter((r) => {
+        const stamp = r.createdAt || r.created_at || r.timestamp || r.date;
+        if (!stamp || typeof stamp !== 'string') return false;
+        return stamp.startsWith(today);
+      });
+      const revenueToday = todayTransactions.reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
 
-      const patientsToday = (apptResult.data ?? []).length;
+      const appointmentsRaw = (apptResult.data as AppointmentRow[] | null) ?? [];
+      const todayAppointments = appointmentsRaw.filter((a) => {
+        const stamp = a.createdAt || (a as any).created_at || a.timestamp || a.date;
+        return typeof stamp === 'string' ? stamp.startsWith(today) : false;
+      });
+      const patientsToday = todayAppointments.length;
       const activeInpatients = (activeRoomResult.data ?? []).length;
-      const uniqueDoctors = new Set((apptResult.data ?? []).map((r) => r.doctorId).filter(Boolean))
-        .size;
+      const uniqueDoctors = new Set(
+        todayAppointments.map((r) => r.doctorId || r.doctor_id).filter(Boolean)
+      ).size;
 
       setStats({
         revenue_today: revenueToday,
@@ -92,12 +82,18 @@ export default function Dashboard({ onNavigate }: { onNavigate?: (page: string) 
         online_staff: uniqueDoctors,
       });
 
-      if (!apptTableResult.error) {
-        setAppointments((apptTableResult.data as unknown as AppointmentRow[]) ?? []);
-      }
-      if (!txnTableResult.error) {
-        setTransactions((txnTableResult.data as unknown as TransactionRow[]) ?? []);
-      }
+      const normalizedAppointments = todayAppointments.slice(0, 10).map((row: any) => ({
+        ...row,
+        createdAt: row.createdAt || row.created_at || row.timestamp || row.date,
+      }));
+      setAppointments(normalizedAppointments);
+      const normalized = todayTransactions.slice(0, 10).map((row: any) => ({
+          ...row,
+          createdAt: row.createdAt || row.created_at || row.timestamp || row.date,
+          paymentType: row.paymentType || row.payment_type,
+          patient_name: row.patient_name || row.fullName || row.patientName || null,
+        }));
+      setTransactions(normalized as TransactionRow[]);
     } catch (e) {
       console.error(e);
       toast.error("Bosh sahifa ma'lumotlari yuklanmadi");
@@ -116,7 +112,8 @@ export default function Dashboard({ onNavigate }: { onNavigate?: (page: string) 
     return Number(num || 0).toLocaleString('uz-UZ');
   }
 
-  function formatTime(iso: string) {
+  function formatTime(iso?: string | null) {
+    if (!iso) return '—';
     return new Date(iso).toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit' });
   }
 
@@ -207,8 +204,8 @@ export default function Dashboard({ onNavigate }: { onNavigate?: (page: string) 
                       {appointments.map((row) => (
                         <tr key={row.id}>
                           <td className="time-cell">{formatTime(row.createdAt)}</td>
-                          <td>{row.patients?.fullName ?? '—'}</td>
-                          <td>{row.services?.name ?? '—'}</td>
+                          <td>{row.patients?.fullName ?? row.patients?.full_name ?? row.patient_name ?? '—'}</td>
+                          <td>{row.services?.name ?? row.service_name ?? '—'}</td>
                           <td style={{ textAlign: 'right' }}>
                             {row.amount != null ? `${formatPrice(row.amount)} so'm` : '—'}
                           </td>

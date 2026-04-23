@@ -14,6 +14,8 @@ export default {
     staff: 'Xodimlar',
     subscription: 'Mening Obunam',
     settings: 'Sozlamalar',
+    doctor_workspace: 'Shifokor oynasi',
+    nurse_workspace: 'Hamshira oynasi',
   },
   common: {
     success: 'Muvaffaqiyatli saqlandi',

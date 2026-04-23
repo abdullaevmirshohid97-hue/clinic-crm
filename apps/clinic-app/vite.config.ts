@@ -24,7 +24,8 @@ export default defineConfig({
       }
     }
   ],
-  base: './',
+  // Subdomain deployment expects absolute asset paths from root.
+  base: '/',
   root: '.',
   envPrefix: 'VITE_',
   build: {
@@ -41,6 +42,13 @@ export default defineConfig({
     host: '0.0.0.0',
     strictPort: true,
     allowedHosts: true,
+    proxy: {
+      '/api/v1': {
+        target: 'https://crm.clary.uz',
+        changeOrigin: true,
+        secure: true,
+      },
+    },
   },
   envDir: __dirname,
 });

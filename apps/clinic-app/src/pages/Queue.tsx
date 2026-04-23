@@ -39,6 +39,7 @@ export default function Queue() {
   const [history, setHistory] = useState<QueueTicket[]>([]);
   const [journalDate, setJournalDate] = useState(new Date().toISOString().split('T')[0]);
   const [loading, setLoading] = useState(false);
+  const [apiFallbackMode, setApiFallbackMode] = useState(false);
 
   useEffect(() => { 
     loadData(); 
@@ -58,13 +59,22 @@ export default function Queue() {
     try {
       const today = new Date().toISOString().split('T')[0];
       const targetDate = activeTab === 'journal' ? journalDate : today;
-
-      const [queueRes, doctorsRes] = await Promise.all([
+      const [queueResult, doctorsResult] = await Promise.allSettled([
         api.get('/queue', { date: targetDate }),
-        api.get('/queue/doctors')
+        api.get('/queue/doctors'),
       ]);
-
+      const queueRes = queueResult.status === 'fulfilled' ? queueResult.value : { data: [] };
+      const doctorsRes = doctorsResult.status === 'fulfilled' ? doctorsResult.value : { data: [] };
       const queueData = queueRes.data || [];
+      const doctorsData = doctorsRes.data || [];
+      const isFallback = queueResult.status === 'rejected' || doctorsResult.status === 'rejected';
+
+      if (isFallback && !apiFallbackMode) {
+        toast.info("Queue API hozircha mavjud emas. Sahifa fallback rejimida ko'rsatildi.");
+        setApiFallbackMode(true);
+      } else if (!isFallback && apiFallbackMode) {
+        setApiFallbackMode(false);
+      }
       
       if (activeTab === 'board') {
         setTickets(queueData);
@@ -72,9 +82,8 @@ export default function Queue() {
         setHistory([...queueData].reverse());
       }
 
-      setDoctors(doctorsRes.data || []);
+      setDoctors(doctorsData);
     } catch (err: any) {
-      console.error('Queue load error:', err);
       toast.error(err.message || 'Ma\'lumotlarni yuklashda xatolik');
     }
   }

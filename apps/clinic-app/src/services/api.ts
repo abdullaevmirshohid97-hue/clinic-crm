@@ -5,7 +5,8 @@ import { supabase } from '../lib/supabase';
  * Uses Supabase session token for Authorization header.
  */
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1';
+const rawApiBase = import.meta.env.VITE_API_URL || '/api/v1';
+const API_BASE = rawApiBase.endsWith('/') ? rawApiBase.slice(0, -1) : rawApiBase;
 
 async function getAuthHeaders() {
   const {
@@ -19,16 +20,43 @@ async function getAuthHeaders() {
 }
 
 async function handleResponse(res: Response, url: string, method: string) {
-  const data = await res.json();
+  const contentType = res.headers.get('content-type') || '';
+  const raw = await res.text();
+  let data: any = null;
+
+  if (raw) {
+    if (contentType.includes('application/json')) {
+      try {
+        data = JSON.parse(raw);
+      } catch {
+        throw new Error(`API JSON parse xatosi (${method} ${url})`);
+      }
+    } else {
+      try {
+        data = JSON.parse(raw);
+      } catch {
+        data = null;
+      }
+    }
+  }
   const timestamp = new Date().toLocaleTimeString();
 
-  if (!res.ok || data.success === false) {
-    console.error(`[${timestamp}] API ERROR: ${method} ${url}`, data);
-    throw new Error(data.error || data.message || `HTTP ${res.status}`);
+  if (!res.ok || data?.success === false) {
+    if (contentType.includes('text/html') || raw.trim().startsWith('<!DOCTYPE') || raw.trim().startsWith('<html')) {
+      throw new Error(
+        `Server JSON o'rniga HTML qaytardi. API manzilini tekshiring (VITE_API_URL) va endpoint mavjudligini tasdiqlang.`
+      );
+    }
+
+    throw new Error(data?.error || data?.message || `HTTP ${res.status}`);
+  }
+
+  if (data === null && raw.length > 0) {
+    throw new Error(`Serverdan JSON javob kelmadi (${method} ${url})`);
   }
 
   console.log(`[${timestamp}] API SUCCESS: ${method} ${url}`, data);
-  return data;
+  return data ?? {};
 }
 
 export const api = {
